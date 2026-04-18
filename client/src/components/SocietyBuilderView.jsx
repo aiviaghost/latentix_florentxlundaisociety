@@ -2,10 +2,11 @@ import { useState, useCallback } from 'react'
 import SearchInput from './SearchInput'
 import DynamicPipeline from './pipeline/DynamicPipeline'
 import usePipelineUpdates from '../hooks/usePipelineUpdates'
+import FloatingIdeaComposer from './FloatingIdeaComposer'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
-import { CheckCircle2, Eye, RefreshCw, Network } from 'lucide-react'
+import { CheckCircle2, RefreshCw, Network } from 'lucide-react'
 
 function formatSearchError(error) {
   if (!error) return 'Search failed.'
@@ -13,7 +14,7 @@ function formatSearchError(error) {
   return typeof msg === 'string' ? msg : 'Search failed.'
 }
 
-export default function SocietyBuilderView({ onSearch, loading, pipelineLive, onOpenNetwork }) {
+export default function SocietyBuilderView({ onSearch, loading, pipelineLive, onSimulationRequest }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
@@ -57,18 +58,28 @@ export default function SocietyBuilderView({ onSearch, loading, pipelineLive, on
     reset()
   }
 
+  const handleIdeaSubmit = useCallback(
+    async ({ ideaPrompt }) => {
+      if (!onSimulationRequest || !societyId || !graphState?.nodes?.length) {
+        throw new Error('Simulation is not available.')
+      }
+      await onSimulationRequest({
+        societyId,
+        ideaPrompt,
+        societySnapshot: {
+          nodes: graphState.nodes,
+          links: graphState.links || [],
+        },
+      })
+    },
+    [onSimulationRequest, societyId, graphState]
+  )
+
   const totalNodes = profiles.length + personas.length
-  /** Waiting for first streamed/simulated profile row. */
   const streamWaiting = !!societyId && totalNodes === 0 && !isComplete
 
-  const handleView3D = useCallback(() => {
-    if (graphState?.status === 'complete' && graphState.nodes?.length) {
-      onOpenNetwork?.({
-        nodes: graphState.nodes,
-        links: graphState.links,
-      })
-    }
-  }, [graphState, onOpenNetwork])
+  const showFloatingComposer =
+    !showSearch && isComplete && graphState?.status === 'complete' && (graphState.nodes?.length ?? 0) > 0
 
   return (
     <div className="h-full w-full flex flex-col">
@@ -154,39 +165,28 @@ export default function SocietyBuilderView({ onSearch, loading, pipelineLive, on
             )}
 
             {isComplete && graphState && (
-              <div className="absolute top-4 right-4 z-10">
-                <Card className="w-80 shadow-xl border-green-500/50 bg-green-500/5">
+              <div className="absolute top-4 right-4 z-10 max-w-sm">
+                <Card className="shadow-xl border-green-500/50 bg-green-500/5">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-400" />
-                      <CardTitle className="text-base">Society Complete!</CardTitle>
+                      <CardTitle className="text-base">Society complete</CardTitle>
                     </div>
                     <CardDescription>
-                      {personas.length} pre-built personas connected for graph exploration
+                      {personas.length} personas are linked in the graph. Enter your idea in the bar below to run a
+                      simulation and open the 3D view.
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
+                  <CardContent className="space-y-2">
                     {graphState.clusters && graphState.clusters.length > 0 && (
-                      <div className="space-y-2">
-                        <div className="text-xs text-muted-foreground">Detected Clusters:</div>
-                        <div className="flex flex-wrap gap-1">
-                          {graphState.clusters.map((cluster, idx) => (
-                            <Badge key={idx} variant="secondary" className="text-xs">
-                              {cluster}
-                            </Badge>
-                          ))}
-                        </div>
+                      <div className="flex flex-wrap gap-1">
+                        {graphState.clusters.map((cluster, idx) => (
+                          <Badge key={idx} variant="secondary" className="text-xs">
+                            {cluster}
+                          </Badge>
+                        ))}
                       </div>
                     )}
-                    <Button
-                      type="button"
-                      className="w-full gap-2"
-                      onClick={handleView3D}
-                      disabled={!graphState.nodes?.length}
-                    >
-                      <Eye className="h-4 w-4" />
-                      View 3D Network
-                    </Button>
                   </CardContent>
                 </Card>
               </div>
@@ -209,6 +209,10 @@ export default function SocietyBuilderView({ onSearch, loading, pipelineLive, on
                   </CardContent>
                 </Card>
               </div>
+            )}
+
+            {showFloatingComposer && (
+              <FloatingIdeaComposer onSubmit={handleIdeaSubmit} disabled={!onSimulationRequest} />
             )}
           </div>
         )}
