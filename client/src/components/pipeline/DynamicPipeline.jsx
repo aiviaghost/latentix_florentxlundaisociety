@@ -27,10 +27,12 @@ const nodeTypes = {
 /** Max profile+persona rows before collapsing (layout + perf). */
 const MAX_PIPELINE_ROWS = 12
 
-/** Layout: card column width (matches Tailwind w-72) + horizontal/vertical rhythm. */
+/** Layout: card column width (matches Tailwind w-72) + horizontal/vertical rhythm.
+ * PersonaNode (traits + tags) is taller than profile cards; keep one shared row pitch
+ * so profile ↔ persona rows stay aligned without vertical overlap. */
 const CARD_WIDTH = 288
 const COLUMN_GAP = 160
-const ROW_HEIGHT = 228
+const ROW_HEIGHT = 332
 const START_X = 36
 const START_Y = 48
 const NODE_Z = 10

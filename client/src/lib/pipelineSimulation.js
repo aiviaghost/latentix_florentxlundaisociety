@@ -156,7 +156,7 @@ function buildGraph(nodesPersonas) {
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
       const v = ((seed + i * 17 + j * 31) % 1000) / 1000
-      if (v > 0.38) {
+      if (v > 0.28) {
         links.push({
           source: ids[i],
           target: ids[j],

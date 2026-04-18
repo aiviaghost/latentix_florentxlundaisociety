@@ -1,14 +1,38 @@
 import { useState, useCallback } from 'react'
 import SocietyBuilderView from './components/SocietyBuilderView'
-import SocietyGraph from './components/SocietyGraph'
+import SimulationView from './components/SimulationView'
 import api from './api/client'
 import { isPipelineLive } from './lib/pipelineConfig'
-import { Sparkles, ArrowLeft } from 'lucide-react'
-import { Button } from './components/ui/button'
+import { buildClientSimulationPlaybook } from './lib/clientSimulationPlaybook'
+import { Sparkles } from 'lucide-react'
+
+function mapSimulationToPanel(simulation) {
+  if (!simulation) return null
+  const m = simulation.metrics || {}
+  const quotes = simulation.quotes || []
+  return {
+    headline: simulation.headline,
+    narrative: simulation.narrative,
+    summary: {
+      adoption_rate: m.adoption_rate,
+      positive_count: m.positive_count,
+      negative_count: m.negative_count,
+      neutral_count: m.neutral_count,
+      top_quotes: quotes.map((q) => ({
+        persona: q.name,
+        archetype: q.archetype,
+        quote: q.quote,
+      })),
+    },
+  }
+}
 
 function App() {
   const [loading, setLoading] = useState(false)
+  const [view, setView] = useState('builder')
   const [networkGraph, setNetworkGraph] = useState(null)
+  const [playbook, setPlaybook] = useState([])
+  const [simulationResult, setSimulationResult] = useState(null)
 
   const handleSearch = useCallback(async (query) => {
     if (isPipelineLive()) {
@@ -30,14 +54,34 @@ function App() {
     }
   }, [])
 
-  const handleOpenNetwork = useCallback((data) => {
-    if (data?.nodes?.length) {
-      setNetworkGraph({ nodes: data.nodes, links: data.links || [] })
-    }
+  const handleCloseSimulation = useCallback(() => {
+    setView('builder')
+    setNetworkGraph(null)
+    setPlaybook([])
+    setSimulationResult(null)
   }, [])
 
-  const handleCloseNetwork = useCallback(() => {
-    setNetworkGraph(null)
+  const handleSimulationRequest = useCallback(async (payload) => {
+    const { societyId, ideaPrompt, societySnapshot } = payload
+
+    const res = await api.runSimulation({
+      society_id: societyId,
+      idea_prompt: ideaPrompt,
+      content: ideaPrompt,
+      seed_strategy: 'auto',
+      society_snapshot: societySnapshot,
+    })
+
+    const graph = res.graph?.nodes?.length ? res.graph : societySnapshot
+    const graphPayload = {
+      nodes: graph?.nodes || [],
+      links: graph?.links || [],
+    }
+
+    setNetworkGraph(graphPayload)
+    setPlaybook(buildClientSimulationPlaybook(graphPayload, { quotes: res.simulation?.quotes }))
+    setSimulationResult(mapSimulationToPanel(res.simulation))
+    setView('simulation')
   }, [])
 
   return (
@@ -57,7 +101,7 @@ function App() {
 
             <div className="flex items-center gap-2">
               <div className="text-xs text-muted-foreground">
-                {networkGraph ? '3D network' : 'Phase 1: Society Builder'}
+                {view === 'simulation' ? 'Simulation + 3D' : 'Phase 1: Society Builder'}
               </div>
               {!isPipelineLive() && (
                 <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80 border border-border rounded px-1.5 py-0.5">
@@ -69,26 +113,23 @@ function App() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden relative">
-        <SocietyBuilderView
-          onSearch={handleSearch}
-          loading={loading}
-          pipelineLive={isPipelineLive()}
-          onOpenNetwork={handleOpenNetwork}
-        />
-
-        {networkGraph && (
-          <div className="absolute inset-0 z-20 flex flex-col bg-background">
-            <div className="flex-shrink-0 flex items-center gap-2 border-b border-border px-4 py-2 bg-card/80">
-              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleCloseNetwork}>
-                <ArrowLeft className="h-4 w-4" />
-                Back to pipeline
-              </Button>
-              <span className="text-sm text-muted-foreground">Drag to rotate, scroll to zoom</span>
-            </div>
-            <div className="flex-1 min-h-0">
-              <SocietyGraph graphData={networkGraph} />
-            </div>
+      <main className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className={view !== 'builder' ? 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
+          <SocietyBuilderView
+            onSearch={handleSearch}
+            loading={loading}
+            pipelineLive={isPipelineLive()}
+            onSimulationRequest={handleSimulationRequest}
+          />
+        </div>
+        {view === 'simulation' && networkGraph && (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SimulationView
+              graphData={networkGraph}
+              playbook={playbook}
+              result={simulationResult}
+              onBack={handleCloseSimulation}
+            />
           </div>
         )}
       </main>

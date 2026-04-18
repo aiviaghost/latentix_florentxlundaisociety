@@ -30,8 +30,30 @@ function useSimulation(society) {
         ...config,
       })
 
-      // Animate through simulation steps
-      await animateSteps(response.steps, response.summary)
+      const steps = Array.isArray(response.steps) ? response.steps : []
+      if (steps.length > 0) {
+        await animateSteps(steps, response.summary)
+      } else {
+        const sim = response.simulation
+        const summary = sim
+          ? {
+              adoption_rate: sim.metrics?.adoption_rate,
+              positive_count: sim.metrics?.positive_count,
+              negative_count: sim.metrics?.negative_count,
+              neutral_count: sim.metrics?.neutral_count,
+              top_quotes: (sim.quotes || []).map((q) => ({
+                persona: q.name,
+                archetype: q.archetype,
+                quote: q.quote,
+              })),
+            }
+          : response.summary
+        setSimulationState((prev) => ({
+          ...prev,
+          isRunning: false,
+          summary,
+        }))
+      }
 
       return response
     } catch (err) {

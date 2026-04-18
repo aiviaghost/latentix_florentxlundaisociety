@@ -7,15 +7,19 @@ function linkEndpointId(nodeOrId) {
   return nodeOrId
 }
 
-function linkKey(link) {
-  const s = linkEndpointId(link.source)
-  const t = linkEndpointId(link.target)
-  return `${s}-${t}`
+function linkMatchesActive(link, activeLinks) {
+  if (!activeLinks?.length) return false
+  const a = linkEndpointId(link.source)
+  const b = linkEndpointId(link.target)
+  const k1 = `${a}-${b}`
+  const k2 = `${b}-${a}`
+  return activeLinks.includes(k1) || activeLinks.includes(k2)
 }
 
-// MOCK DATA when graphData is null
+/** Rich mock when graphData is null: hub + ring + cross-links for visible structure */
 const MOCK_GRAPH = {
   nodes: [
+    { id: 'hub', name: 'Jordan R.', archetype: 'Connector', val: 14, color: '#a78bfa' },
     { id: 'p_1', name: 'Maria C.', archetype: 'Product Leader', val: 8, color: '#8b5cf6' },
     { id: 'p_2', name: 'John D.', archetype: 'Tech Founder', val: 10, color: '#3b82f6' },
     { id: 'p_3', name: 'Sarah K.', archetype: 'Investor', val: 12, color: '#ec4899' },
@@ -23,17 +27,21 @@ const MOCK_GRAPH = {
     { id: 'p_5', name: 'Emma L.', archetype: 'Designer', val: 7, color: '#f59e0b' },
   ],
   links: [
-    { source: 'p_1', target: 'p_2', strength: 0.6 },
-    { source: 'p_2', target: 'p_3', strength: 0.8 },
-    { source: 'p_1', target: 'p_4', strength: 0.5 },
-    { source: 'p_3', target: 'p_5', strength: 0.7 },
-    { source: 'p_4', target: 'p_5', strength: 0.4 },
-  ]
+    { source: 'hub', target: 'p_1', type: 'collab', strength: 0.85 },
+    { source: 'hub', target: 'p_2', type: 'collab', strength: 0.9 },
+    { source: 'hub', target: 'p_3', type: 'collab', strength: 0.88 },
+    { source: 'hub', target: 'p_4', type: 'advisor', strength: 0.55 },
+    { source: 'hub', target: 'p_5', type: 'advisor', strength: 0.6 },
+    { source: 'p_1', target: 'p_2', type: 'peer', strength: 0.5 },
+    { source: 'p_2', target: 'p_3', type: 'peer', strength: 0.55 },
+    { source: 'p_3', target: 'p_5', type: 'peer', strength: 0.5 },
+    { source: 'p_4', target: 'p_5', type: 'peer', strength: 0.45 },
+    { source: 'p_1', target: 'p_4', type: 'weak', strength: 0.35 },
+  ],
 }
 
 function SocietyGraph({ graphData, simulationState, onNodeClick }) {
   const graphRef = useRef()
-
   const data = useMemo(() => {
     const raw = graphData?.nodes?.length ? graphData : MOCK_GRAPH
     const nodes = (raw.nodes || []).map((n) => ({
@@ -48,32 +56,57 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
     return { nodes, links }
   }, [graphData])
 
-  const nodeThreeObject = useCallback((node) => {
-    const geometry = new THREE.SphereGeometry(node.val || 5, 16, 16)
+  const nodeThreeObject = useCallback(
+    (node) => {
+      const baseR = Math.min(12, Math.max(3, (node.val || 5) * 0.42))
+      const isActive = simulationState?.activeNodes?.includes(node.id)
+      const r = isActive ? baseR * 1.38 : baseR
+      const geometry = new THREE.SphereGeometry(r, 20, 20)
 
-    const isActive = simulationState?.activeNodes?.includes(node.id)
-    const color = node.color || '#8b5cf6'
+      const color = node.color || '#8b5cf6'
 
-    const material = new THREE.MeshPhongMaterial({
-      color,
-      transparent: true,
-      opacity: isActive ? 1.0 : 0.65,
-      emissive: isActive ? color : 0x000000,
-      emissiveIntensity: isActive ? 0.45 : 0,
-    })
+      const material = new THREE.MeshPhongMaterial({
+        color,
+        transparent: true,
+        opacity: isActive ? 1 : 0.62,
+        emissive: isActive ? color : 0x000000,
+        emissiveIntensity: isActive ? 0.75 : 0,
+        shininess: isActive ? 95 : 55,
+      })
 
-    const mesh = new THREE.Mesh(geometry, material)
-    return mesh
-  }, [simulationState])
+      return new THREE.Mesh(geometry, material)
+    },
+    [simulationState]
+  )
 
-  // Auto-rotate when idle
+  const activeKey = (simulationState?.activeNodes || []).join(',')
+
   useEffect(() => {
-    if (graphRef.current && !simulationState?.isRunning) {
-      const graph = graphRef.current
-      // Gentle auto-rotation
-      // TODO: Implement camera animation (Person A)
-    }
-  }, [simulationState])
+    const fg = graphRef.current
+    if (!fg || typeof fg.cameraPosition !== 'function') return
+    if (!simulationState?.activeNodes?.length) return
+
+    const t = window.setTimeout(() => {
+      try {
+        const id = simulationState.activeNodes[0]
+        const graph = typeof fg.graphData === 'function' ? fg.graphData() : null
+        const node = graph?.nodes?.find((n) => n.id === id)
+        if (!node || node.x === undefined) return
+        const d = 200
+        fg.cameraPosition(
+          { x: node.x + d * 0.55, y: node.y + d * 0.32, z: node.z + d * 0.5 },
+          node,
+          520
+        )
+      } catch {
+        /* camera API optional */
+      }
+    }, 80)
+
+    return () => window.clearTimeout(t)
+  }, [activeKey, simulationState?.activeNodes])
+
+  const playing = simulationState?.isRunning
 
   return (
     <ForceGraph3D
@@ -82,32 +115,31 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
       nodeThreeObject={nodeThreeObject}
       nodeLabel={(node) => `${node.archetype || 'Persona'}: ${node.name || node.id}`}
 
-      linkDirectionalParticles={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
-        return isActive ? 4 : 0
-      }}
-      linkDirectionalParticleSpeed={0.005}
-      linkDirectionalParticleColor={() => '#60a5fa'}
+      linkDirectionalParticles={(link) => (linkMatchesActive(link, simulationState?.activeLinks) ? 10 : 0)}
+      linkDirectionalParticleSpeed={(link) =>
+        linkMatchesActive(link, simulationState?.activeLinks) ? 0.018 : 0.004
+      }
+      linkDirectionalParticleWidth={(link) =>
+        linkMatchesActive(link, simulationState?.activeLinks) ? 2.4 : 0.35
+      }
+      linkDirectionalParticleColor={() => (playing ? '#93c5fd' : '#60a5fa')}
 
       linkColor={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
-        return isActive ? '#60a5fa' : 'rgba(148,163,184,0.22)'
+        return linkMatchesActive(link, simulationState?.activeLinks)
+          ? '#7dd3fc'
+          : 'rgba(148,163,184,0.42)'
       }}
       linkWidth={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
-        return isActive ? 2 : 0.45
+        return linkMatchesActive(link, simulationState?.activeLinks) ? 3.2 : 0.85
       }}
 
-      // Background
       backgroundColor="#050510"
 
-      // Interaction
       onNodeClick={onNodeClick}
 
-      // Force configuration
-      d3AlphaDecay={0.02}
-      d3VelocityDecay={0.3}
-      warmupTicks={100}
+      d3AlphaDecay={0.022}
+      d3VelocityDecay={0.32}
+      warmupTicks={120}
       cooldownTicks={0}
     />
   )

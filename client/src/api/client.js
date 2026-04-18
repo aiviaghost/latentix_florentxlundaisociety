@@ -82,31 +82,24 @@ const api = {
    *
    * @param {Object} config
    * @param {string} config.society_id - ID of the society
-   * @param {string} config.content - The startup idea/pitch to test
-   * @param {string} [config.seed_strategy] - 'auto' | 'influencers' | 'random'
+   * @param {string} [config.content] - Idea / pitch (legacy; use idea_prompt preferred)
+   * @param {string} [config.idea_prompt] - Idea or message to test
+   * @param {string} [config.seed_strategy] - ignored by current server (kept for compatibility)
+   * @param {{ nodes: Array, links: Array }} [config.society_snapshot] - When society_id is not
+   *   stored server-side (e.g. client sim_*), send the graph from the builder.
    *
    * @returns {Promise<Object>} Response format:
    * {
-   *   steps: Array<{
-   *     step: number,
-   *     reactions: Array<{
-   *       agent_id: string,
-   *       reaction: 'positive' | 'negative' | 'neutral',
-   *       action: 'share' | 'engage' | 'debate' | 'ignore',
-   *       sentiment: number, // -1 to 1
-   *       quote: string,
-   *       influenced_by: string | null
-   *     }>
-   *   }>,
-   *   summary: {
-   *     adoption_rate: number, // 0-1
-   *     positive_count: number,
-   *     negative_count: number,
-   *     neutral_count: number,
-   *     top_quotes: Array<{ persona: string, archetype: string, quote: string }>,
-   *     clusters: Object // cluster performance data
-   *   }
+   *   society_id: string,
+   *   simulation: {
+   *     headline: string,
+   *     narrative: string,
+   *     quotes: Array<{ persona_id?: string, name: string, archetype?: string, quote: string, sentiment?: string }>,
+   *     metrics?: { adoption_rate?: number, positive_count?: number, negative_count?: number, neutral_count?: number }
+   *   },
+   *   graph: { nodes, links }
    * }
+   * Playback / 3D highlights are generated on the client from `graph` + `simulation.quotes`.
    */
   async runSimulation(config) {
     const response = await apiClient.post('/simulate', config)
