@@ -1,0 +1,97 @@
+[
+  {
+    "id": "p_cached_1",
+    "display_name": "Alex M.",
+    "archetype": "Tech Founder",
+    "role": "Co-Founder & CEO",
+    "company_type": "startup",
+    "source": "linkedin_cached",
+    "color": "#3b82f6",
+    "traits": {
+      "risk_tolerance": 0.85,
+      "price_sensitivity": 0.4,
+      "innovation_openness": 0.9,
+      "social_influence": 0.75,
+      "tech_savviness": 0.85,
+      "domain_expertise": ["saas", "fintech", "api-platforms"]
+    },
+    "behavioral_summary": "Serial entrepreneur with 2 exits. Values technical depth and clean architecture. Quick to adopt tools that improve developer experience.",
+    "connection_tags": ["founder", "technical", "early-stage"]
+  },
+  {
+    "id": "p_cached_2",
+    "display_name": "Sarah K.",
+    "archetype": "Product Leader",
+    "role": "VP Product",
+    "company_type": "enterprise",
+    "source": "linkedin_cached",
+    "color": "#8b5cf6",
+    "traits": {
+      "risk_tolerance": 0.6,
+      "price_sensitivity": 0.5,
+      "innovation_openness": 0.75,
+      "social_influence": 0.7,
+      "tech_savviness": 0.7,
+      "domain_expertise": ["product-strategy", "b2b-saas", "analytics"]
+    },
+    "behavioral_summary": "Focuses on user outcomes and metrics. Skeptical of solutions without clear ROI. Needs proof points before advocating internally.",
+    "connection_tags": ["product", "enterprise", "data-driven"]
+  },
+  {
+    "id": "p_cached_3",
+    "display_name": "James L.",
+    "archetype": "Investor",
+    "role": "Partner at Venture Capital",
+    "company_type": "vc",
+    "source": "linkedin_cached",
+    "color": "#ec4899",
+    "traits": {
+      "risk_tolerance": 0.7,
+      "price_sensitivity": 0.2,
+      "innovation_openness": 0.8,
+      "social_influence": 0.9,
+      "tech_savviness": 0.65,
+      "domain_expertise": ["venture-capital", "market-research", "go-to-market"]
+    },
+    "behavioral_summary": "Looks for billion-dollar opportunities and strong founding teams. Thinks about market timing and competitive moats. Highly networked.",
+    "connection_tags": ["investor", "networker", "strategic"]
+  },
+  {
+    "id": "p_cached_4",
+    "display_name": "Maria P.",
+    "archetype": "Developer",
+    "role": "Senior Software Engineer",
+    "company_type": "startup",
+    "source": "linkedin_cached",
+    "color": "#10b981",
+    "traits": {
+      "risk_tolerance": 0.55,
+      "price_sensitivity": 0.7,
+      "innovation_openness": 0.8,
+      "social_influence": 0.4,
+      "tech_savviness": 0.95,
+      "domain_expertise": ["backend", "devops", "apis"]
+    },
+    "behavioral_summary": "Cares deeply about code quality and developer experience. Skeptical of overhyped products. Adopts tools that genuinely save time.",
+    "connection_tags": ["engineer", "technical", "pragmatic"]
+  },
+  {
+    "id": "p_cached_5",
+    "display_name": "David R.",
+    "archetype": "Enterprise Buyer",
+    "role": "Director of IT",
+    "company_type": "enterprise",
+    "source": "linkedin_cached",
+    "color": "#6366f1",
+    "traits": {
+      "risk_tolerance": 0.3,
+      "price_sensitivity": 0.6,
+      "innovation_openness": 0.45,
+      "social_influence": 0.5,
+      "tech_savviness": 0.6,
+      "domain_expertise": ["enterprise-it", "security", "compliance"]
+    },
+    "behavioral_summary": "Prioritizes security, compliance, and vendor stability. Requires SOC 2, SLAs, and proven track record. Budget-conscious with long procurement cycles.",
+    "connection_tags": ["enterprise", "buyer", "conservative"]
+  }
+]

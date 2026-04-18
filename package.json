@@ -1,0 +1,25 @@
+{
+  "name": "latentix",
+  "version": "1.0.0",
+  "description": "AI Synthetic Market Simulator - Generate AI societies and simulate startup idea adoption",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "install:all": "npm install && npm install --workspace=client && npm install --workspace=server"
+  },
+  "keywords": [
+    "ai",
+    "simulation",
+    "market-research",
+    "synthetic-data"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

@@ -1,0 +1,94 @@
+import axios from 'axios'
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
+
+const apiClient = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 120000, // 2 minutes for LLM operations
+})
+
+/**
+ * API CONTRACT
+ *
+ * This file defines the contract between frontend and backend.
+ * Backend team (Person B) should implement these exact endpoints and response formats.
+ */
+
+const api = {
+  /**
+   * Generate a society of AI personas
+   *
+   * @param {Object} config
+   * @param {string} config.mode - 'describe' | 'linkedin'
+   * @param {string} [config.description] - For 'describe' mode
+   * @param {Array<string>} [config.linkedin_urls] - For 'linkedin' mode
+   * @param {number} [config.persona_count] - Total personas to generate
+   * @param {number} [config.supplement_count] - For 'linkedin' mode, how many to generate
+   *
+   * @returns {Promise<Object>} Response format:
+   * {
+   *   society_id: string,
+   *   nodes: Array<Persona>,
+   *   links: Array<{ source: string, target: string, strength: number }>,
+   *   metadata: {
+   *     total_personas: number,
+   *     real_profiles: number,
+   *     generated_profiles: number,
+   *     clusters: Array<string>
+   *   }
+   * }
+   */
+  async generateSociety(config) {
+    const response = await apiClient.post('/society/generate', config)
+    return response.data
+  },
+
+  /**
+   * Run a simulation on a society
+   *
+   * @param {Object} config
+   * @param {string} config.society_id - ID of the society
+   * @param {string} config.content - The startup idea/pitch to test
+   * @param {string} [config.seed_strategy] - 'auto' | 'influencers' | 'random'
+   *
+   * @returns {Promise<Object>} Response format:
+   * {
+   *   steps: Array<{
+   *     step: number,
+   *     reactions: Array<{
+   *       agent_id: string,
+   *       reaction: 'positive' | 'negative' | 'neutral',
+   *       action: 'share' | 'engage' | 'debate' | 'ignore',
+   *       sentiment: number, // -1 to 1
+   *       quote: string,
+   *       influenced_by: string | null
+   *     }>
+   *   }>,
+   *   summary: {
+   *     adoption_rate: number, // 0-1
+   *     positive_count: number,
+   *     negative_count: number,
+   *     neutral_count: number,
+   *     top_quotes: Array<{ persona: string, archetype: string, quote: string }>,
+   *     clusters: Object // cluster performance data
+   *   }
+   * }
+   */
+  async runSimulation(config) {
+    const response = await apiClient.post('/simulate', config)
+    return response.data
+  },
+
+  /**
+   * Health check
+   */
+  async healthCheck() {
+    const response = await apiClient.get('/health')
+    return response.data
+  },
+}
+
+export default api
