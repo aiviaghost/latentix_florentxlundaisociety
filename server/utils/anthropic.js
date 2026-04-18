@@ -34,6 +34,7 @@ export async function callClaudeJSON(prompt, options = {}) {
   } = options
 
   try {
+    console.log(`[Claude] calling model=${model} maxTokens=${maxTokens}`)
     const message = await anthropic.messages.create({
       model,
       max_tokens: maxTokens,
@@ -48,21 +49,22 @@ export async function callClaudeJSON(prompt, options = {}) {
 
     const content = message.content[0].text
 
-    // Try to parse JSON response
     try {
       return JSON.parse(content)
     } catch (parseError) {
-      // If JSON parsing fails, try to extract JSON from markdown code blocks
       const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/)
       if (jsonMatch) {
         return JSON.parse(jsonMatch[1])
       }
 
-      console.error('Failed to parse Claude response as JSON:', content)
+      console.error('[Claude] Failed to parse response as JSON. Raw response:', content)
       throw new Error('Claude response was not valid JSON')
     }
   } catch (error) {
-    console.error('Error calling Claude:', error)
+    console.error(
+      `[Claude] API error: status=${error.status ?? 'n/a'} message="${error.message}"`,
+      error.error ?? ''
+    )
     throw error
   }
 }

@@ -17,17 +17,13 @@ function formatSearchError(error) {
 export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
-  const [audienceData, setAudienceData] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
   const [searchError, setSearchError] = useState('')
 
-  const { profiles, personas, graphState, isComplete, reset, applyUpdate } = usePipelineUpdates(
-    societyId,
-    !!societyId,
-    { query, nodes: audienceData?.nodes, links: audienceData?.links }
-  )
+  const { profiles, personas, graphState, isComplete, reset, applyUpdate } = usePipelineUpdates()
 
-  const handleSearch = async (searchQuery) => {
+  const handleSearch = async (searchQuery, personaCount) => {
+    reset()
     setQuery(searchQuery)
     setSearchError('')
     setShowSearch(false)
@@ -35,10 +31,13 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
 
     try {
       const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
-      const result = await onSearch(searchQuery, pipelineLive ? applyUpdate : undefined)
+      const result = await onSearch(
+        searchQuery,
+        personaCount,
+        pipelineLive ? applyUpdate : undefined
+      )
 
       if (result?.society_id) {
-        setAudienceData(result)
         setSocietyId(result.society_id)
       } else {
         setSearchError('Unexpected response from server.')
@@ -56,7 +55,6 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
   const handleReset = () => {
     setQuery('')
     setSocietyId(null)
-    setAudienceData(null)
     setShowSearch(true)
     setSearchError('')
     reset()

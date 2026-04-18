@@ -1,16 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { scheduleSimulatedPipeline } from '../lib/pipelineSimulation'
+import { useState, useCallback } from 'react'
 
-const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
-
-/**
- * @param {string|null} societyId
- * @param {boolean} enabled
- * @param {{ query?: string, nodes?: Array, links?: Array }} [options]
- */
-export default function usePipelineUpdates(societyId, enabled = false, options = {}) {
-  const { query: simulationQuery = '', nodes = [], links = [] } = options
-
+export default function usePipelineUpdates() {
   const [profiles, setProfiles] = useState([])
   const [personas, setPersonas] = useState([])
   const [graphState, setGraphState] = useState(null)
@@ -37,7 +27,7 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
             ...update.persona,
             sourceProfileId: update.profileId,
             status: 'synthesizing',
-            name: update.persona.name || 'Linking…',
+            name: update.persona.name || 'Linking\u2026',
           },
         ])
         break
@@ -85,20 +75,10 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
         break
 
       default:
-        if (update.type) console.warn('Unknown update type:', update.type)
+        if (update.type && !['society_ready', 'error'].includes(update.type))
+          console.warn('Unknown update type:', update.type)
     }
   }, [])
-
-  useEffect(() => {
-    if (pipelineLive) return
-    if (!enabled || !societyId || societyId === 'loading' || !nodes.length) return
-    const cancel = scheduleSimulatedPipeline(applyUpdate, {
-      query: simulationQuery,
-      nodes,
-      links,
-    })
-    return cancel
-  }, [societyId, enabled, simulationQuery, nodes, links, applyUpdate])
 
   const reset = useCallback(() => {
     setProfiles([])

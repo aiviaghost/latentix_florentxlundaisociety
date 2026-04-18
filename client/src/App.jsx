@@ -43,13 +43,14 @@ export default function App() {
     }
   }, [focusedPersonaId, simSession?.personaResults])
 
-  const handleSearch = useCallback(async (query, applyUpdate) => {
+  const handleSearch = useCallback(async (query, personaCount, onEvent) => {
     searchAbortRef.current?.abort()
     const ac = new AbortController()
     searchAbortRef.current = ac
     try {
       const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
-      const society = await api.generateAudience(query, undefined, pipelineLive ? applyUpdate : null, {
+      const liveHandler = pipelineLive ? onEvent ?? null : null
+      const society = await api.generateAudience(query, personaCount, liveHandler, {
         signal: ac.signal,
       })
       societyRef.current = society

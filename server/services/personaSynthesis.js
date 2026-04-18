@@ -35,7 +35,9 @@ export async function synthesizePersonaFromLinkedIn(profileData) {
     const persona = await callClaudeHaiku(prompt)
     return persona
   } catch (error) {
-    console.error('Error synthesizing LinkedIn persona:', error)
+    console.error(
+      `[personaSynthesis] Failed to synthesize persona for "${profileData['Full Name'] ?? 'unknown'}": ${error.message}`
+    )
     return null
   }
 }

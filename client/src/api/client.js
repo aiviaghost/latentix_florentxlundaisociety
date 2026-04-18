@@ -29,7 +29,7 @@ const api = {
    *
    * @param {string} query
    * @param {number} [persona_count]
-   * @param {((evt: { type: string } & Record<string, unknown>) => void) | null} [onEvent] — per `data:` record; omit when buffered-only
+   * @param {((evt: { type: string } & Record<string, unknown>) => void) | null} [onEvent] — per `data:` record; omit when not using live pipeline UI
    * @param {{ signal?: AbortSignal }} [options]
    * @returns {Promise<Object>} { society_id, status, nodes, links, metadata }
    */

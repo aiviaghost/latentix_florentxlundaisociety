@@ -56,7 +56,9 @@ router.post('/search', async (req, res) => {
       console.error('generateAudience failed:', error)
       if (!res.writableEnded) {
         try {
-          res.write(`data: ${JSON.stringify({ type: 'error', message: error.message || 'Search failed' })}\n\n`)
+          res.write(
+            `data: ${JSON.stringify({ type: 'error', message: error.message || 'Search failed' })}\n\n`
+          )
         } catch {
           /* ignore */
         }

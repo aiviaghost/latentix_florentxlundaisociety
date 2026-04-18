@@ -44,6 +44,7 @@ export async function generateAudience({ description, persona_count = 30, onEven
   }
 
   const personaPromises = matchedProfiles.map(async (profile, i) => {
+    assertNotAborted(signal)
     const profileId = `prof_${i}`
     const firstName = (profile['Full Name'] || '').split(' ')[0] || 'Person'
 
@@ -51,7 +52,7 @@ export async function generateAudience({ description, persona_count = 30, onEven
       profileId,
       persona: {
         id: profileId,
-        name: `${firstName} …`,
+        name: `${firstName} \u2026`,
         sourceProfileId: profileId,
         status: 'synthesizing',
         pipelineStage: 'index',
@@ -72,7 +73,7 @@ export async function generateAudience({ description, persona_count = 30, onEven
 
   console.log('Assembling social network graph...')
   onEvent?.('graph_progress', {
-    message: 'Assembling social network graph…',
+    message: 'Assembling social network graph\u2026',
     connectionsBuilt: 0,
     totalConnections: personas.length * 2,
   })
