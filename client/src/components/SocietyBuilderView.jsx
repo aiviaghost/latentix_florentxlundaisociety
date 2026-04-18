@@ -17,27 +17,22 @@ function formatSearchError(error) {
 export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
-  const [audienceData, setAudienceData] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
   const [searchError, setSearchError] = useState('')
 
-  const { profiles, personas, graphState, isComplete, reset } = usePipelineUpdates(
-    societyId,
-    !!societyId,
-    { query, nodes: audienceData?.nodes, links: audienceData?.links }
-  )
+  const { profiles, personas, graphState, isComplete, applyUpdate, reset } = usePipelineUpdates()
 
   const handleSearch = async (searchQuery) => {
+    reset()
     setQuery(searchQuery)
     setSearchError('')
     setShowSearch(false)
-    setSocietyId('loading') // show streamWaiting while API runs
+    setSocietyId('loading')
 
     try {
-      const result = await onSearch(searchQuery)
+      const result = await onSearch(searchQuery, applyUpdate)
 
       if (result?.society_id) {
-        setAudienceData(result)
         setSocietyId(result.society_id)
       } else {
         setSearchError('Unexpected response from server.')
@@ -55,7 +50,6 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
   const handleReset = () => {
     setQuery('')
     setSocietyId(null)
-    setAudienceData(null)
     setShowSearch(true)
     setSearchError('')
     reset()

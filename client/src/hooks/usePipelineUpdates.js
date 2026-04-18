@@ -1,14 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
-import { scheduleSimulatedPipeline } from '../lib/pipelineSimulation'
+import { useState, useCallback } from 'react'
 
-/**
- * @param {string|null} societyId
- * @param {boolean} enabled
- * @param {{ query?: string, nodes?: Array, links?: Array }} [options]
- */
-export default function usePipelineUpdates(societyId, enabled = false, options = {}) {
-  const { query: simulationQuery = '', nodes = [], links = [] } = options
-
+export default function usePipelineUpdates() {
   const [profiles, setProfiles] = useState([])
   const [personas, setPersonas] = useState([])
   const [graphState, setGraphState] = useState(null)
@@ -35,17 +27,25 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
             ...update.persona,
             sourceProfileId: update.profileId,
             status: 'synthesizing',
-            name: update.persona.name || 'Linking…',
+            name: update.persona.name || 'Linking\u2026',
           },
         ])
         break
 
       case 'persona_complete':
-        setPersonas((prev) =>
-          prev.map((p) =>
-            p.id === update.persona.id ? { ...p, ...update.persona, status: 'ready' } : p
+        setPersonas((prev) => {
+          const idx = prev.findIndex(
+            (p) =>
+              p.id === update.persona.id ||
+              (update.persona.sourceProfileId && p.sourceProfileId === update.persona.sourceProfileId)
           )
-        )
+          if (idx !== -1) {
+            const updated = [...prev]
+            updated[idx] = { ...prev[idx], ...update.persona, status: 'ready' }
+            return updated
+          }
+          return [...prev, { ...update.persona, status: 'ready' }]
+        })
         break
 
       case 'graph_progress':
@@ -68,16 +68,10 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
         break
 
       default:
-        if (update.type) console.warn('Unknown update type:', update.type)
+        if (update.type && !['society_ready', 'error'].includes(update.type))
+          console.warn('Unknown update type:', update.type)
     }
   }, [])
-
-  useEffect(() => {
-    if (!enabled || !societyId || !nodes.length) return
-    const cancel = scheduleSimulatedPipeline(applyUpdate, { query: simulationQuery, nodes, links })
-    return cancel
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [societyId, enabled])
 
   const reset = useCallback(() => {
     setProfiles([])
@@ -86,5 +80,5 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
     setIsComplete(false)
   }, [])
 
-  return { profiles, personas, graphState, isComplete, reset }
+  return { profiles, personas, graphState, isComplete, applyUpdate, reset }
 }

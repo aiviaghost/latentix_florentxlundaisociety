@@ -25,16 +25,62 @@ const apiClient = axios.create({
 
 const api = {
   /**
-   * Generate an audience from a natural-language description.
+   * Generate an audience from a natural-language description via a streaming SSE response.
+   * Calls onEvent for each event as it arrives; resolves with the final society object.
    *
-   * @param {string} query - Natural language description of target audience
+   * @param {string} query
    * @param {number} [persona_count]
-   *
-   * @returns {Promise<Object>} { society_id, status, nodes, links, metadata }
+   * @param {(event: object) => void} [onEvent]
+   * @returns {Promise<{ society_id: string, nodes: Array, links: Array, status: string, metadata: object }>}
    */
-  async generateAudience(query, persona_count) {
-    const response = await apiClient.post('/society/search', { query, persona_count })
-    return response.data
+  async generateAudience(query, persona_count, onEvent) {
+    const url = `${API_BASE_URL}/society/search`
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, persona_count }),
+    })
+
+    if (!response.ok) {
+      let errorMsg = 'Request failed'
+      try { errorMsg = (await response.json()).error || errorMsg } catch {}
+      throw new Error(errorMsg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let nodes = null
+    let links = null
+    let societyId = null
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop()
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        let event
+        try { event = JSON.parse(line.slice(6)) } catch { continue }
+
+        if (event.type === 'error') throw new Error(event.message)
+        if (event.type === 'graph_complete') { nodes = event.nodes; links = event.links }
+        if (event.type === 'society_ready') { societyId = event.society_id }
+
+        onEvent?.(event)
+      }
+    }
+
+    return {
+      society_id: societyId,
+      nodes: nodes || [],
+      links: links || [],
+      status: 'complete',
+      metadata: { total_personas: nodes?.length ?? 0 },
+    }
   },
 
   /**

@@ -10,25 +10,34 @@ const router = express.Router()
  *
  * Body: { query: string, persona_count?: number }
  */
-router.post('/search', async (req, res, next) => {
+router.post('/search', async (req, res) => {
+  const { query, persona_count } = req.body
+
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'query is required' })
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream')
+  res.setHeader('Cache-Control', 'no-cache')
+  res.setHeader('Connection', 'keep-alive')
+  res.flushHeaders()
+
+  const emit = (type, data) => {
+    res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+  }
+
   try {
-    const { query, persona_count } = req.body
-
-    if (!query || typeof query !== 'string' || !query.trim()) {
-      return res.status(400).json({ error: 'query is required' })
-    }
-
     console.log(`Generating audience for query: "${query}"`)
-
-    const society = await generateAudience({
+    await generateAudience({
       description: query,
       persona_count: persona_count || 30,
+      onEvent: emit,
     })
-
-    res.json(society)
   } catch (error) {
-    next(error)
+    emit('error', { message: error.message })
   }
+
+  res.end()
 })
 
 /**
