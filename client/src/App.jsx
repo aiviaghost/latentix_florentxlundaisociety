@@ -27,6 +27,39 @@ function mapSimulationToPanel(simulation) {
   }
 }
 
+function buildLocalSimulation(graphPayload, ideaPrompt) {
+  const nodes = graphPayload?.nodes || []
+  const n = nodes.length
+  const trimmed = (ideaPrompt || '').trim()
+
+  const quotes = nodes.slice(0, Math.min(5, Math.max(2, n || 2))).map((node, idx) => ({
+    persona_id: node.id,
+    name: node.name || node.display_name || `Persona ${idx + 1}`,
+    archetype: node.archetype || 'Member',
+    quote:
+      idx % 2 === 0
+        ? `I need stronger proof for "${trimmed.slice(0, 42)}${trimmed.length > 42 ? '...' : ''}" before rollout.`
+        : 'This direction is promising if onboarding is simple for our team.',
+    sentiment: ['positive', 'neutral', 'negative'][idx % 3],
+  }))
+
+  const positive_count = Math.max(1, Math.floor(n * 0.36) || 1)
+  const negative_count = Math.max(0, Math.floor(n * 0.22))
+  const neutral_count = Math.max(0, n - positive_count - negative_count)
+
+  return {
+    headline: 'Fallback simulation generated in browser',
+    narrative: `The prompt "${trimmed.slice(0, 96)}${trimmed.length > 96 ? '...' : ''}" produced mixed but actionable feedback across ${n || 'several'} personas.`,
+    quotes,
+    metrics: {
+      adoption_rate: n ? Math.min(0.82, 0.3 + n * 0.035) : 0.35,
+      positive_count,
+      negative_count,
+      neutral_count,
+    },
+  }
+}
+
 function App() {
   const [loading, setLoading] = useState(false)
   const [view, setView] = useState('builder')
@@ -64,24 +97,40 @@ function App() {
   const handleSimulationRequest = useCallback(async (payload) => {
     const { societyId, ideaPrompt, societySnapshot } = payload
 
-    const res = await api.runSimulation({
-      society_id: societyId,
-      idea_prompt: ideaPrompt,
-      content: ideaPrompt,
-      seed_strategy: 'auto',
-      society_snapshot: societySnapshot,
-    })
-
-    const graph = res.graph?.nodes?.length ? res.graph : societySnapshot
     const graphPayload = {
-      nodes: graph?.nodes || [],
-      links: graph?.links || [],
+      nodes: societySnapshot?.nodes || [],
+      links: societySnapshot?.links || [],
     }
 
-    setNetworkGraph(graphPayload)
-    setPlaybook(buildClientSimulationPlaybook(graphPayload, { quotes: res.simulation?.quotes }))
-    setSimulationResult(mapSimulationToPanel(res.simulation))
-    setView('simulation')
+    try {
+      const res = await api.runSimulation({
+        society_id: societyId,
+        idea_prompt: ideaPrompt,
+        content: ideaPrompt,
+        seed_strategy: 'auto',
+        society_snapshot: societySnapshot,
+      })
+
+      const graph = res.graph?.nodes?.length ? res.graph : societySnapshot
+      const normalizedGraph = {
+        nodes: graph?.nodes || [],
+        links: graph?.links || [],
+      }
+      const simulation = res.simulation || buildLocalSimulation(normalizedGraph, ideaPrompt)
+
+      setNetworkGraph(normalizedGraph)
+      setPlaybook(buildClientSimulationPlaybook(normalizedGraph, { quotes: simulation?.quotes }))
+      setSimulationResult(mapSimulationToPanel(simulation))
+      setView('simulation')
+    } catch (error) {
+      console.warn('Simulation API failed, using local fallback:', error?.message || error)
+      const fallback = buildLocalSimulation(graphPayload, ideaPrompt)
+
+      setNetworkGraph(graphPayload)
+      setPlaybook(buildClientSimulationPlaybook(graphPayload, { quotes: fallback.quotes }))
+      setSimulationResult(mapSimulationToPanel(fallback))
+      setView('simulation')
+    }
   }, [])
 
   return (
