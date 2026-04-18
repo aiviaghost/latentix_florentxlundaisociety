@@ -284,8 +284,8 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        fitViewOptions={{ padding: 0.32, maxZoom: 1.1, minZoom: 0.2 }}
-        minZoom={0.15}
+        fitViewOptions={{ padding: 0.32, maxZoom: 1.1, minZoom: 0.01 }}
+        minZoom={0.001}
         maxZoom={1.25}
         proOptions={{ hideAttribution: true }}
         elevateEdgesOnSelect

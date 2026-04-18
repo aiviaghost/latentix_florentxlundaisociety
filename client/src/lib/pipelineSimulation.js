@@ -131,6 +131,126 @@ const BASE_FIXTURES = [
       },
     },
   },
+  {
+    profileId: 'prof_6',
+    personaId: 'persona_6',
+    profile: {
+      name: 'Emma T.',
+      title: 'Head of RevOps @ Fluxware',
+      company: 'Fluxware',
+      location: 'Amsterdam, NL',
+      skills: ['RevOps', 'GTM systems', 'CRM automation'],
+    },
+    persona: {
+      name: 'Emma T.',
+      archetype: 'Revenue Operator',
+      role: 'Head of RevOps',
+      company_type: 'scaleup',
+      color: '#14b8a6',
+      traits: {
+        risk_tolerance: 0.52,
+        innovation_openness: 0.72,
+        social_influence: 0.63,
+        domain_expertise: ['revops', 'gtm-systems', 'crm-automation'],
+      },
+    },
+  },
+  {
+    profileId: 'prof_7',
+    personaId: 'persona_7',
+    profile: {
+      name: 'Liam N.',
+      title: 'Principal Product Designer @ Orbitly',
+      company: 'Orbitly',
+      location: 'Dublin, IE',
+      skills: ['UX strategy', 'Workflow design', 'Enterprise SaaS'],
+    },
+    persona: {
+      name: 'Liam N.',
+      archetype: 'Design Strategist',
+      role: 'Principal Product Designer',
+      company_type: 'startup',
+      color: '#f59e0b',
+      traits: {
+        risk_tolerance: 0.58,
+        innovation_openness: 0.83,
+        social_influence: 0.57,
+        domain_expertise: ['ux-strategy', 'workflow-design', 'enterprise-saas'],
+      },
+    },
+  },
+  {
+    profileId: 'prof_8',
+    personaId: 'persona_8',
+    profile: {
+      name: 'Nina V.',
+      title: 'CFO @ Blueleaf Systems',
+      company: 'Blueleaf Systems',
+      location: 'Zurich, CH',
+      skills: ['Finance ops', 'Pricing strategy', 'Unit economics'],
+    },
+    persona: {
+      name: 'Nina V.',
+      archetype: 'Finance Decision Maker',
+      role: 'Chief Financial Officer',
+      company_type: 'enterprise',
+      color: '#ef4444',
+      traits: {
+        risk_tolerance: 0.28,
+        innovation_openness: 0.42,
+        social_influence: 0.68,
+        domain_expertise: ['finance-ops', 'pricing-strategy', 'unit-economics'],
+      },
+    },
+  },
+  {
+    profileId: 'prof_9',
+    personaId: 'persona_9',
+    profile: {
+      name: 'Omar J.',
+      title: 'Data Science Lead @ Prism Labs',
+      company: 'Prism Labs',
+      location: 'Paris, FR',
+      skills: ['ML systems', 'Experimentation', 'Forecasting'],
+    },
+    persona: {
+      name: 'Omar J.',
+      archetype: 'AI Practitioner',
+      role: 'Data Science Lead',
+      company_type: 'scaleup',
+      color: '#22c55e',
+      traits: {
+        risk_tolerance: 0.66,
+        innovation_openness: 0.88,
+        social_influence: 0.55,
+        domain_expertise: ['ml-systems', 'experimentation', 'forecasting'],
+      },
+    },
+  },
+  {
+    profileId: 'prof_10',
+    personaId: 'persona_10',
+    profile: {
+      name: 'Chloe W.',
+      title: 'Head of Customer Success @ HelioCloud',
+      company: 'HelioCloud',
+      location: 'Austin, TX',
+      skills: ['Customer success', 'Onboarding', 'Retention'],
+    },
+    persona: {
+      name: 'Chloe W.',
+      archetype: 'Customer Champion',
+      role: 'Head of Customer Success',
+      company_type: 'startup',
+      color: '#a855f7',
+      traits: {
+        risk_tolerance: 0.47,
+        innovation_openness: 0.69,
+        social_influence: 0.73,
+        domain_expertise: ['customer-success', 'onboarding', 'retention'],
+      },
+    },
+  },
 ]
 
 function hashStr(s) {
@@ -249,12 +369,15 @@ export function scheduleSimulatedPipeline(onEvent, options = {}) {
     cursor += DELAY_LINK_DONE
   })
 
-  const totalConn = 36
+  const potentialConn = (BASE_FIXTURES.length * (BASE_FIXTURES.length - 1)) / 2
+  const totalConn = Math.max(12, Math.round(potentialConn * 0.72))
+  const firstConn = Math.max(4, Math.round(totalConn * 0.25))
+  const secondConn = Math.max(firstConn + 1, Math.round(totalConn * 0.65))
   schedule(cursor, () =>
     onEvent({
       type: 'graph_progress',
       message: 'Assembling graph from linked personas…',
-      connectionsBuilt: 8,
+      connectionsBuilt: firstConn,
       totalConnections: totalConn,
     })
   )
@@ -264,7 +387,7 @@ export function scheduleSimulatedPipeline(onEvent, options = {}) {
     onEvent({
       type: 'graph_progress',
       message: 'Assembling graph from linked personas…',
-      connectionsBuilt: 22,
+      connectionsBuilt: secondConn,
       totalConnections: totalConn,
     })
   )
