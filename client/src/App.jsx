@@ -1,75 +1,57 @@
 import { useState } from 'react'
-import SocietyGraph from './components/SocietyGraph'
-import CreatePanel from './components/CreatePanel'
-import SimulationPanel from './components/SimulationPanel'
-import ResultsPanel from './components/ResultsPanel'
-import PersonaDetail from './components/PersonaDetail'
-import ActivityFeed from './components/ActivityFeed'
-import useSociety from './hooks/useSociety'
-import useSimulation from './hooks/useSimulation'
+import SocietyBuilderView from './components/SocietyBuilderView'
+import api from './api/client'
+import { Sparkles } from 'lucide-react'
 
 function App() {
-  const [selectedNode, setSelectedNode] = useState(null)
-  const { society, loading: societyLoading, generateSociety } = useSociety()
-  const { simulationState, runSimulation, isRunning } = useSimulation(society)
+  const [loading, setLoading] = useState(false)
+  const [currentPhase, setCurrentPhase] = useState('builder') // 'builder' | 'simulation'
+
+  const handleSearch = async (query) => {
+    setLoading(true)
+    try {
+      // Call new simplified API
+      const result = await api.searchLinkedIn(query)
+      return result
+    } catch (error) {
+      console.error('Search failed:', error)
+      throw error
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-white overflow-hidden">
-      {/* Header */}
-      <header className="absolute top-0 left-0 right-0 z-10 p-6">
-        <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-500 bg-clip-text text-transparent">
-          Latentix
-        </h1>
-        <p className="text-sm text-slate-400">AI Synthetic Market Simulator</p>
-      </header>
+    <div className="h-screen w-screen flex flex-col overflow-hidden">
+      {/* Global Header */}
+      <header className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-6 w-6 text-primary" />
+                <h1 className="text-2xl font-bold tracking-tight">Latentix</h1>
+              </div>
+              <span className="text-sm text-muted-foreground hidden sm:inline">
+                AI Synthetic Market Simulator
+              </span>
+            </div>
 
-      {/* Main Layout: 3 columns */}
-      <div className="flex h-full pt-20">
-        {/* Left Panel - Society Creation */}
-        <div className="w-80 flex-shrink-0 border-r border-slate-800 overflow-y-auto">
-          <CreatePanel
-            onGenerate={generateSociety}
-            loading={societyLoading}
-            disabled={isRunning}
-          />
-
-          {society && (
-            <SimulationPanel
-              onSimulate={runSimulation}
-              loading={isRunning}
-              disabled={!society || isRunning}
-            />
-          )}
-        </div>
-
-        {/* Center - 3D Graph */}
-        <div className="flex-1 relative">
-          <SocietyGraph
-            graphData={society}
-            simulationState={simulationState}
-            onNodeClick={setSelectedNode}
-          />
-
-          {/* Activity Feed - Bottom overlay */}
-          <div className="absolute bottom-0 left-0 right-0">
-            <ActivityFeed activities={simulationState?.activities || []} />
+            {/* Phase indicator */}
+            <div className="flex items-center gap-2">
+              <div className="text-xs text-muted-foreground">
+                Phase 1: Society Builder
+              </div>
+            </div>
           </div>
         </div>
+      </header>
 
-        {/* Right Panel - Results & Details */}
-        <div className="w-96 flex-shrink-0 border-l border-slate-800 overflow-y-auto">
-          {selectedNode && (
-            <PersonaDetail
-              persona={selectedNode}
-              onClose={() => setSelectedNode(null)}
-            />
-          )}
-
-          {simulationState?.summary && (
-            <ResultsPanel results={simulationState.summary} />
-          )}
-        </div>
-      </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-hidden">
+        <SocietyBuilderView onSearch={handleSearch} loading={loading} />
+        {/* Phase 2 (Simulation) can be added here later */}
+      </main>
     </div>
   )
 }

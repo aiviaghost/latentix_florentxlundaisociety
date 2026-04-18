@@ -19,7 +19,43 @@ const apiClient = axios.create({
 
 const api = {
   /**
-   * Generate a society of AI personas
+   * Search LinkedIn and generate society (NEW SIMPLIFIED API)
+   *
+   * @param {string} query - Natural language description of target audience
+   *
+   * @returns {Promise<Object>} Response format:
+   * {
+   *   society_id: string,
+   *   status: 'processing' | 'complete',
+   *   message: string
+   * }
+   */
+  async searchLinkedIn(query) {
+    const response = await apiClient.post('/society/search', { query })
+    return response.data
+  },
+
+  /**
+   * Get society status (for polling, WebSocket is preferred)
+   *
+   * @param {string} societyId - ID of the society
+   *
+   * @returns {Promise<Object>} Response format:
+   * {
+   *   society_id: string,
+   *   status: 'processing' | 'complete',
+   *   profiles: Array<Profile>,
+   *   personas: Array<Persona>,
+   *   graphState: Object
+   * }
+   */
+  async getSocietyStatus(societyId) {
+    const response = await apiClient.get(`/society/${societyId}/status`)
+    return response.data
+  },
+
+  /**
+   * LEGACY: Generate a society of AI personas (DEPRECATED - use searchLinkedIn)
    *
    * @param {Object} config
    * @param {string} config.mode - 'describe' | 'linkedin'
@@ -28,18 +64,7 @@ const api = {
    * @param {number} [config.persona_count] - Total personas to generate
    * @param {number} [config.supplement_count] - For 'linkedin' mode, how many to generate
    *
-   * @returns {Promise<Object>} Response format:
-   * {
-   *   society_id: string,
-   *   nodes: Array<Persona>,
-   *   links: Array<{ source: string, target: string, strength: number }>,
-   *   metadata: {
-   *     total_personas: number,
-   *     real_profiles: number,
-   *     generated_profiles: number,
-   *     clusters: Array<string>
-   *   }
-   * }
+   * @returns {Promise<Object>}
    */
   async generateSociety(config) {
     const response = await apiClient.post('/society/generate', config)
