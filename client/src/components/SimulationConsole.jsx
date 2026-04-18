@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback, useMemo, useState } from 'react'
+import { useRef, useCallback, useMemo, useState, useEffect } from 'react'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card'
@@ -319,24 +319,6 @@ export default function SimulationConsole({
       </Card>
     ) : null
 
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTop = el.scrollHeight
-  }, [completedRounds.length, status, personaResults.length])
-
-  useEffect(() => {
-    if (!focusedPersonaId) return
-    const root = scrollRef.current
-    if (!root) return
-    const esc =
-      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
-        ? CSS.escape(String(focusedPersonaId))
-        : String(focusedPersonaId).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
-    const row = root.querySelector(`[data-persona-row="${esc}"]`)
-    row?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' })
-  }, [focusedPersonaId, personaResults, reduceMotion])
-
   const handleSubmit = useCallback(
     async (e) => {
       e?.preventDefault?.()
@@ -348,6 +330,25 @@ export default function SimulationConsole({
     },
     [streaming, onFollowUp]
   )
+
+  const personaResultsLength = personaResults?.length ?? 0
+  const roundsLength = rounds?.length ?? 0
+  const hasError = !!error
+
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container) return
+
+    const scrollToBottom = () => {
+      container.scrollTo({
+        top: container.scrollHeight,
+        behavior: reduceMotion ? 'auto' : 'smooth',
+      })
+    }
+
+    const rafId = requestAnimationFrame(scrollToBottom)
+    return () => cancelAnimationFrame(rafId)
+  }, [personaResultsLength, roundsLength, hasError, streaming, reduceMotion])
 
   return (
     <div className="flex h-full min-h-0 flex-col border-l border-border bg-gradient-to-b from-muted/25 via-background to-background">

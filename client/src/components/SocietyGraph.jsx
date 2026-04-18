@@ -28,11 +28,14 @@ function hexToRgb(hex) {
   return { r, g, b }
 }
 
-function popoverPositionStyle(x, y) {
+/** Viewport-fixed anchor so popovers are not clipped by `overflow-hidden` graph panes. */
+function popoverViewportStyle(vx, vy) {
   return {
-    left: x,
-    top: y,
+    position: 'fixed',
+    left: vx,
+    top: vy,
     transform: 'translate(-50%, calc(-100% - 14px))',
+    zIndex: 100,
   }
 }
 
@@ -45,6 +48,7 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
   const [tipScreen, setTipScreen] = useState(null)
   const [hoverId, setHoverId] = useState(null)
   const [hoverScreen, setHoverScreen] = useState(null)
+  const [clickScreen, setClickScreen] = useState(null)
 
   const data = useMemo(() => {
     if (!graphData?.nodes?.length) return { nodes: [], links: [] }
@@ -104,11 +108,42 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
 
   useEffect(() => {
     calloutRef.current = focusedPersonaCallout
+    if (!focusedPersonaCallout) {
+      setClickScreen(null)
+    }
   }, [focusedPersonaCallout])
 
   useEffect(() => {
     focusIdRef.current = focusKey
+    if (!focusKey) {
+      setClickScreen(null)
+    } else {
+      const fg = graphRef.current
+      const canvas = fg?.renderer?.()?.domElement
+      const rect = canvas?.getBoundingClientRect()
+      if (rect) {
+        setClickScreen({ x: rect.left + rect.width * 0.65, y: rect.top + rect.height / 2 })
+      }
+    }
   }, [focusKey])
+
+  const graphLocalToViewport = useCallback(
+    (fg, lx, ly) => {
+      try {
+        const canvas = fg.renderer?.()?.domElement
+        const rect = canvas?.getBoundingClientRect()
+        const w = dimensions.width
+        const h = dimensions.height
+        if (!rect || !w || !h) return null
+        const vx = rect.left + (rect.width / w) * lx
+        const vy = rect.top + (rect.height / h) * ly
+        return { x: vx, y: vy }
+      } catch {
+        return null
+      }
+    },
+    [dimensions.width, dimensions.height]
+  )
 
   const syncScreenPopovers = useCallback(() => {
     const fg = graphRef.current
@@ -127,13 +162,41 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
         try {
           const s = fg.graph2ScreenCoords(node.x, node.y, node.z)
           if (s && Number.isFinite(s.x) && Number.isFinite(s.y)) {
-            setTipScreen({ x: s.x, y: s.y })
+            const v = graphLocalToViewport(fg, s.x, s.y)
+            if (v) {
+              setTipScreen({ x: v.x, y: v.y })
+              setClickScreen({ x: v.x, y: v.y })
+            } else {
+              setTipScreen(null)
+              const canvas = fg.renderer?.()?.domElement
+              const rect = canvas?.getBoundingClientRect()
+              if (rect) {
+                setClickScreen({ x: rect.left + rect.width * 0.65, y: rect.top + rect.height / 2 })
+              }
+            }
+          } else {
+            setTipScreen(null)
+            const canvas = fg.renderer?.()?.domElement
+            const rect = canvas?.getBoundingClientRect()
+            if (rect) {
+              setClickScreen({ x: rect.left + rect.width * 0.65, y: rect.top + rect.height / 2 })
+            }
           }
         } catch {
           setTipScreen(null)
+          const canvas = fg.renderer?.()?.domElement
+          const rect = canvas?.getBoundingClientRect()
+          if (rect) {
+            setClickScreen({ x: rect.left + rect.width * 0.65, y: rect.top + rect.height / 2 })
+          }
         }
       } else {
         setTipScreen(null)
+        const canvas = fg.renderer?.()?.domElement
+        const rect = canvas?.getBoundingClientRect()
+        if (rect) {
+          setClickScreen({ x: rect.left + rect.width * 0.65, y: rect.top + rect.height / 2 })
+        }
       }
     } else {
       setTipScreen(null)
@@ -147,12 +210,17 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
         try {
           const s = fg.graph2ScreenCoords(node.x, node.y, node.z)
           if (s && Number.isFinite(s.x) && Number.isFinite(s.y)) {
-            setHoverScreen({
-              x: s.x,
-              y: s.y,
-              name: node.name || node.id,
-              archetype: node.archetype,
-            })
+            const v = graphLocalToViewport(fg, s.x, s.y)
+            if (v) {
+              setHoverScreen({
+                x: v.x,
+                y: v.y,
+                name: node.name || node.id,
+                archetype: node.archetype,
+              })
+            } else {
+              setHoverScreen(null)
+            }
           }
         } catch {
           setHoverScreen(null)
@@ -163,7 +231,7 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
     } else {
       setHoverScreen(null)
     }
-  }, [hoverId, focusedPersonaCallout])
+  }, [hoverId, focusedPersonaCallout, graphLocalToViewport])
 
   useEffect(() => {
     const active = focusedPersonaCallout || hoverId
@@ -259,51 +327,12 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
     setHoverId(node != null && node.id != null && node.id !== '' ? String(node.id) : null)
   }, [])
 
+  const onBackgroundClick = useCallback(() => {
+    onNodeClick?.(null)
+  }, [onNodeClick])
+
   return (
     <div ref={containerRef} className="relative h-full w-full min-h-0 min-w-0">
-      {hoverScreen && !focusedPersonaCallout && (
-        <div
-          className={cn(
-            'pointer-events-none absolute z-40 max-h-[min(40vh,300px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-1 ring-border/40 backdrop-blur-md'
-          )}
-          style={popoverPositionStyle(hoverScreen.x, hoverScreen.y)}
-          role="dialog"
-          aria-label="Persona preview"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Persona</p>
-          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{hoverScreen.name}</p>
-          {hoverScreen.archetype ? (
-            <p className="mt-0.5 text-xs text-muted-foreground">{hoverScreen.archetype}</p>
-          ) : null}
-          <Separator className="my-2.5 bg-border/60" />
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
-            Synthetic audience member. Scroll or drag to orbit. <span className="text-foreground/90">Tap once</span>{' '}
-            (without dragging) during a run to pin their reaction and quote.
-          </p>
-        </div>
-      )}
-
-      {focusedPersonaCallout && tipScreen && (
-        <div
-          className={cn(
-            'pointer-events-none absolute z-40 max-h-[min(42vh,320px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-primary/45 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-2 ring-primary/25 backdrop-blur-md'
-          )}
-          style={popoverPositionStyle(tipScreen.x, tipScreen.y)}
-          role="dialog"
-          aria-label="Focused persona reaction"
-        >
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Focused persona</p>
-          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{focusedPersonaCallout.name}</p>
-          {focusedPersonaCallout.reaction ? (
-            <p className="mt-0.5 text-xs capitalize text-muted-foreground">{focusedPersonaCallout.reaction}</p>
-          ) : null}
-          <Separator className="my-2.5 bg-border/60" />
-          <p className="text-[13px] leading-relaxed text-foreground/95">
-            &ldquo;{focusedPersonaCallout.quote}&rdquo;
-          </p>
-        </div>
-      )}
-
       <ForceGraph3D
         ref={graphRef}
         width={dimensions.width}
@@ -324,12 +353,59 @@ function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNod
 
         onNodeClick={onNodeClick}
         onNodeHover={onNodeHover}
+        onBackgroundClick={onBackgroundClick}
 
         d3AlphaDecay={0.022}
         d3VelocityDecay={0.32}
         warmupTicks={120}
         cooldownTicks={0}
       />
+
+      {hoverScreen && !focusedPersonaCallout && (
+        <div
+          className={cn(
+            'pointer-events-none max-h-[min(40vh,300px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-1 ring-border/40 backdrop-blur-md'
+          )}
+          style={popoverViewportStyle(hoverScreen.x, hoverScreen.y)}
+          role="dialog"
+          aria-label="Persona preview"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Persona</p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{hoverScreen.name}</p>
+          {hoverScreen.archetype ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{hoverScreen.archetype}</p>
+          ) : null}
+          <Separator className="my-2.5 bg-border/60" />
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Synthetic audience member. Scroll or drag to orbit. <span className="text-foreground/90">Tap once</span>{' '}
+            (without dragging) during a run to pin their reaction and quote.
+          </p>
+        </div>
+      )}
+
+      {focusedPersonaCallout && (tipScreen || clickScreen) && (
+        <div
+          className={cn(
+            'pointer-events-none max-h-[min(42vh,320px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-primary/45 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-2 ring-primary/25 backdrop-blur-md'
+          )}
+          style={popoverViewportStyle(
+            tipScreen?.x ?? clickScreen?.x ?? 0,
+            tipScreen?.y ?? clickScreen?.y ?? 0
+          )}
+          role="dialog"
+          aria-label="Focused persona reaction"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Focused persona</p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{focusedPersonaCallout.name}</p>
+          {focusedPersonaCallout.reaction ? (
+            <p className="mt-0.5 text-xs capitalize text-muted-foreground">{focusedPersonaCallout.reaction}</p>
+          ) : null}
+          <Separator className="my-2.5 bg-border/60" />
+          <p className="text-[13px] leading-relaxed text-foreground/95">
+            &ldquo;{focusedPersonaCallout.quote}&rdquo;
+          </p>
+        </div>
+      )}
     </div>
   )
 }

@@ -38,6 +38,8 @@ const MAX_PERSONA_PIPELINE_ROWS = 5
 const CARD_WIDTH = 288
 const COLUMN_GAP = 160
 const ROW_HEIGHT = 332
+/** Vertical gap between stacked “overflow” processing chips in one column. */
+const OVERFLOW_CHIP_GAP = 140
 const START_X = 36
 const START_Y = 48
 const NODE_Z = 10
@@ -100,16 +102,28 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
     }
   }, [profiles])
 
-  const { personaOverflowCount, personaPairTotal } = useMemo(() => {
-    let pairs = 0
-    for (const profile of displayProfiles) {
-      if (personas.some((p) => p.sourceProfileId === profile.id)) pairs += 1
+  /** At most this many profile (and matching persona) rows are laid out vertically in React Flow. */
+  const layoutProfiles = useMemo(
+    () => displayProfiles.slice(0, MAX_PERSONA_PIPELINE_ROWS),
+    [displayProfiles]
+  )
+
+  const profileRowsHiddenInDiagram = Math.max(0, displayProfiles.length - layoutProfiles.length)
+
+  const personaSlotsUsed = useMemo(() => {
+    let slot = 0
+    for (const profile of layoutProfiles) {
+      if (
+        personas.some((p) => p.sourceProfileId === profile.id) &&
+        slot < MAX_PERSONA_PIPELINE_ROWS
+      ) {
+        slot += 1
+      }
     }
-    return {
-      personaPairTotal: pairs,
-      personaOverflowCount: Math.max(0, pairs - MAX_PERSONA_PIPELINE_ROWS),
-    }
-  }, [displayProfiles, personas])
+    return slot
+  }, [layoutProfiles, personas])
+
+  const personasNotDrawn = Math.max(0, personas.length - personaSlotsUsed)
 
   useEffect(() => {
     const COLS = columnXs()
@@ -170,7 +184,7 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
     let personaSlot = 0
     let lastPersonaRowY = START_Y
 
-    displayProfiles.forEach((profile, idx) => {
+    layoutProfiles.forEach((profile, idx) => {
       const profileId = `profile-${profile.id || idx}`
       const y = START_Y + idx * ROW_HEIGHT
 
@@ -238,39 +252,40 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
       }
     })
 
-    if (personaOverflowCount > 0) {
-      const overflowY = lastPersonaRowY + ROW_HEIGHT + 24
+    let nextProfileChipY = START_Y + layoutProfiles.length * ROW_HEIGHT + 24
+
+    if (profileRowsHiddenInDiagram > 0) {
       newNodes.push({
-        id: 'personas-overflow',
+        id: 'profiles-rows-hidden',
         type: 'processing',
-        position: { x: COLS.personas, y: overflowY },
+        position: { x: COLS.profiles, y: nextProfileChipY },
         zIndex: NODE_Z,
         data: {
-          label: 'More personas',
+          label: 'More profiles',
           processingType: 'llm',
           status: 'complete',
-          currentTask: PIPELINE.personaOverflow(personaOverflowCount),
-          processed: personaOverflowCount,
-          total: personaOverflowCount,
+          currentTask: PIPELINE.profileRowsHidden(profileRowsHiddenInDiagram),
+          processed: profileRowsHiddenInDiagram,
+          total: profileRowsHiddenInDiagram,
         },
       })
       newEdges.push({
-        id: 'index-to-personas-overflow',
+        id: 'index-to-profiles-rows-hidden',
         source: 'profile-index',
-        target: 'personas-overflow',
+        target: 'profiles-rows-hidden',
         animated: false,
         style: { stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' },
         markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--muted-foreground))' },
         type: 'smoothstep',
       })
+      nextProfileChipY += OVERFLOW_CHIP_GAP
     }
 
     if (overflowCount > 0) {
-      const overflowY = START_Y + displayProfiles.length * ROW_HEIGHT + 24
       newNodes.push({
         id: 'profiles-overflow',
         type: 'processing',
-        position: { x: COLS.profiles, y: overflowY },
+        position: { x: COLS.profiles, y: nextProfileChipY },
         zIndex: NODE_Z,
         data: {
           label: 'More from index',
@@ -292,12 +307,43 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
       })
     }
 
+    if (personasNotDrawn > 0) {
+      const personaOverflowY =
+        personaSlot > 0
+          ? lastPersonaRowY + ROW_HEIGHT + 24
+          : START_Y + Math.min(layoutProfiles.length, 2) * ROW_HEIGHT + 24
+      newNodes.push({
+        id: 'personas-overflow',
+        type: 'processing',
+        position: { x: COLS.personas, y: personaOverflowY },
+        zIndex: NODE_Z,
+        data: {
+          label: 'More personas',
+          processingType: 'llm',
+          status: 'complete',
+          currentTask: PIPELINE.personaOverflow(personasNotDrawn),
+          processed: personasNotDrawn,
+          total: personasNotDrawn,
+        },
+      })
+      newEdges.push({
+        id: 'index-to-personas-overflow',
+        source: 'profile-index',
+        target: 'personas-overflow',
+        animated: false,
+        style: { stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--muted-foreground))' },
+        type: 'smoothstep',
+      })
+    }
+
     if (personas.length > 0) {
       const graphStatus = graphState?.status || 'idle'
-      const graphRowSpan = Math.max(
-        displayProfiles.length + (overflowCount > 0 ? 1 : 0) + (personaOverflowCount > 0 ? 1 : 0),
-        1
-      )
+      const extraRows =
+        (profileRowsHiddenInDiagram > 0 ? 1 : 0) +
+        (overflowCount > 0 ? 1 : 0) +
+        (personasNotDrawn > 0 ? 1 : 0)
+      const graphRowSpan = Math.max(layoutProfiles.length + extraRows, 1)
       const midY = START_Y + ((graphRowSpan - 1) * ROW_HEIGHT) / 2
 
       newNodes.push({
@@ -349,9 +395,10 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
     profiles,
     personas,
     graphState,
-    displayProfiles,
+    layoutProfiles,
     overflowCount,
-    personaOverflowCount,
+    profileRowsHiddenInDiagram,
+    personasNotDrawn,
     setNodes,
     setEdges,
   ])
@@ -363,9 +410,10 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
         profiles.length,
         personas.length,
         displayProfiles.length,
+        layoutProfiles.length,
         overflowCount,
-        personaPairTotal,
-        personaOverflowCount,
+        profileRowsHiddenInDiagram,
+        personasNotDrawn,
         graphState?.status ?? '',
         String(graphState?.connectionsBuilt ?? ''),
       ].join('|'),
@@ -374,15 +422,19 @@ function DynamicPipelineInner({ query, profiles, personas, graphState }) {
       profiles.length,
       personas.length,
       displayProfiles.length,
+      layoutProfiles.length,
       overflowCount,
-      personaPairTotal,
-      personaOverflowCount,
+      profileRowsHiddenInDiagram,
+      personasNotDrawn,
       graphState,
     ]
   )
 
   const rowCount = Math.max(
-    displayProfiles.length + (overflowCount > 0 ? 1 : 0) + (personaOverflowCount > 0 ? 1 : 0),
+    layoutProfiles.length +
+      (profileRowsHiddenInDiagram > 0 ? 1 : 0) +
+      (overflowCount > 0 ? 1 : 0) +
+      (personasNotDrawn > 0 ? 1 : 0),
     1
   )
 

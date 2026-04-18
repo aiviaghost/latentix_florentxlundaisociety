@@ -30,15 +30,20 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
     setSocietyId('loading')
 
     try {
-      const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
-      const result = await onSearch(
-        searchQuery,
-        personaCount,
-        pipelineLive ? applyUpdate : undefined
-      )
+      // Always stream server SSE into the pipeline UI. (Buffered client replay was removed;
+      // gating on VITE_PIPELINE_LIVE left applyUpdate undefined and the loading overlay never cleared.)
+      const result = await onSearch(searchQuery, personaCount, applyUpdate)
 
       if (result?.society_id) {
         setSocietyId(result.society_id)
+        if (result.nodes?.length) {
+          applyUpdate({
+            type: 'graph_complete',
+            nodes: result.nodes,
+            links: result.links || [],
+            clusters: [],
+          })
+        }
       } else {
         setSearchError('Unexpected response from server.')
         setSocietyId(null)
@@ -79,10 +84,25 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
   )
 
   const totalNodes = profiles.length + personas.length
-  const streamWaiting = !!societyId && totalNodes === 0 && !isComplete
+  /** Only while the sentinel `loading` id is set — not after a real society_id (avoids blocking if counts lag). */
+  const streamWaiting = societyId === 'loading' && !isComplete && totalNodes === 0
 
+  const graphNodesReady =
+    graphState?.status === 'complete' && (graphState.nodes?.length ?? 0) > 0
+  const graphWiring =
+    personas.length > 0 &&
+    !graphNodesReady &&
+    (graphState?.status === 'processing' || graphState == null)
+  /** Show dock while personas finish and the graph wires; submit stays disabled until nodes exist. */
   const showFloatingComposer =
-    !showSearch && isComplete && graphState?.status === 'complete' && (graphState.nodes?.length ?? 0) > 0
+    !showSearch &&
+    societyId &&
+    societyId !== 'loading' &&
+    personas.length > 0 &&
+    (graphNodesReady || graphWiring)
+  const ideaComposerPhaseHint = graphNodesReady
+    ? null
+    : 'Synthetic personas are ready; finishing the graph so you can run a simulation.'
 
   return (
     <div className="h-full w-full flex flex-col">
@@ -206,7 +226,11 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
             )}
 
             {showFloatingComposer && (
-              <FloatingIdeaComposer onSubmit={handleIdeaSubmit} disabled={!onBeginSimulation} />
+              <FloatingIdeaComposer
+                onSubmit={handleIdeaSubmit}
+                disabled={!graphNodesReady || !onBeginSimulation}
+                phaseHint={ideaComposerPhaseHint}
+              />
             )}
           </div>
         )}

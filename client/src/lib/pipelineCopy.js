@@ -15,4 +15,6 @@ export const PIPELINE = {
     `+${n} more profile${n === 1 ? '' : 's'} not shown in this view (see header)`,
   personaOverflow: (n) =>
     `+${n} more persona${n === 1 ? '' : 's'} in the full graph (only 5 rows shown here)`,
+  profileRowsHidden: (n) =>
+    `+${n} more profile row${n === 1 ? '' : 's'} from the index (diagram shows 5 max)`,
 }

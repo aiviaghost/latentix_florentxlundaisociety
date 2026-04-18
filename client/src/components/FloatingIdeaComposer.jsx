@@ -11,7 +11,7 @@ const getMaxTextareaPx = () => Math.round(window.innerHeight * 0.3)
  * ChatGPT-style bottom dock: outer wrapper is pointer-events-none so React Flow
  * stays interactive; only the shell captures clicks.
  */
-export default function FloatingIdeaComposer({ onSubmit, disabled }) {
+export default function FloatingIdeaComposer({ onSubmit, disabled, phaseHint }) {
   const [idea, setIdea] = useState('')
   const [error, setError] = useState('')
   const taRef = useRef(null)
@@ -65,6 +65,9 @@ export default function FloatingIdeaComposer({ onSubmit, disabled }) {
               {error}
             </div>
           )}
+          {phaseHint ? (
+            <p className="mb-2 text-[11px] leading-snug text-muted-foreground">{phaseHint}</p>
+          ) : null}
           <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end sm:gap-3">
             <div className="min-w-0 flex-1 space-y-1.5">
               <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground/90">

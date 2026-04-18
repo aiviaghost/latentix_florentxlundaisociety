@@ -35,11 +35,12 @@ export default function App() {
     if (focusedPersonaId == null || focusedPersonaId === '') return null
     const id = String(focusedPersonaId)
     const row = (simSession?.personaResults || []).find((p) => String(p.persona_id) === id)
-    if (!row || !row.quote) return null
+    if (!row) return null
     return {
       name: row.name || id,
-      quote: row.quote,
-      reaction: row.reaction,
+      quote: row.quote || 'Processing response...',
+      reaction: row.reaction || 'analyzing',
+      sentimentScore: row.sentiment_score,
     }
   }, [focusedPersonaId, simSession?.personaResults])
 
@@ -48,9 +49,7 @@ export default function App() {
     const ac = new AbortController()
     searchAbortRef.current = ac
     try {
-      const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
-      const liveHandler = pipelineLive ? onEvent ?? null : null
-      const society = await api.generateAudience(query, personaCount, liveHandler, {
+      const society = await api.generateAudience(query, personaCount, onEvent ?? null, {
         signal: ac.signal,
       })
       societyRef.current = society
@@ -303,6 +302,10 @@ export default function App() {
     )
   }, [])
 
+  const handleGraphNodeClick = useCallback((node) => {
+    setFocusedPersonaId(node?.id != null && node.id !== '' ? String(node.id) : null)
+  }, [])
+
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
       <header className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -311,11 +314,8 @@ export default function App() {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-6 w-6 text-primary" />
-                <h1 className="text-2xl font-bold tracking-tight">Latentix</h1>
+                <h1 className="text-2xl font-bold tracking-tight">Pollen</h1>
               </div>
-              <span className="text-sm text-muted-foreground hidden sm:inline">
-                AI Synthetic Market Simulator
-              </span>
             </div>
           </div>
         </div>
@@ -333,9 +333,7 @@ export default function App() {
               graphSimulationState={graphSimulationState}
               focusedPersonaCallout={focusedPersonaCallout}
               focusedPersonaId={focusedPersonaId}
-              onGraphNodeClick={(node) =>
-                setFocusedPersonaId(node?.id != null && node.id !== '' ? String(node.id) : null)
-              }
+              onGraphNodeClick={handleGraphNodeClick}
               onFollowUp={handleFollowUp}
               onAbortStream={handleAbortStream}
               onBack={handleCloseSimulation}

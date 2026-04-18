@@ -46,7 +46,7 @@ app.use((err, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 Latentix server running on http://localhost:${PORT}`)
+  console.log(`🚀 Pollen server running on http://localhost:${PORT}`)
   console.log(`📊 API Health: http://localhost:${PORT}/api/health`)
 
   if (!process.env.ANTHROPIC_API_KEY) {

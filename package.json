@@ -1,7 +1,7 @@
 {
-  "name": "latentix",
+  "name": "pollen",
   "version": "1.0.0",
-  "description": "AI Synthetic Market Simulator - Generate AI societies and simulate startup idea adoption",
+  "description": "Generate AI societies and simulate how ideas spread through synthetic audiences",
   "private": true,
   "workspaces": [
     "client",

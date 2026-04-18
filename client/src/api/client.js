@@ -4,9 +4,9 @@ import { consumeFramedSseReader, consumeSocietySearchSseReader } from '../lib/ss
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 /**
- * Society Builder: `VITE_PIPELINE_LIVE === 'true'` forwards each streamed server event to
- * `onEvent` while the search runs. When not live, `onEvent` is omitted and the client runs
- * `scheduleSimulatedPipeline` after the graph is returned (see `usePipelineUpdates`).
+ * Society Builder: pass `onEvent` to receive each `data:` JSON record from POST /society/search
+ * (profile_found, persona_synthesizing, persona_complete, graph_progress, graph_complete, …)
+ * while the stream is open. The hook `usePipelineUpdates` maps these into React state.
  */
 
 const apiClient = axios.create({
@@ -29,7 +29,7 @@ const api = {
    *
    * @param {string} query
    * @param {number} [persona_count]
-   * @param {((evt: { type: string } & Record<string, unknown>) => void) | null} [onEvent] — per `data:` record; omit when not using live pipeline UI
+   * @param {((evt: { type: string } & Record<string, unknown>) => void) | null} [onEvent] — per `data:` record (optional)
    * @param {{ signal?: AbortSignal }} [options]
    * @returns {Promise<Object>} { society_id, status, nodes, links, metadata }
    */

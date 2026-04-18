@@ -1,8 +1,8 @@
-# Latentix — AI Synthetic Market Simulator
+# Pollen
 
 > **Hackathon Project**: Generate AI societies and simulate how startup ideas spread through social networks
 
-Inspired by [Artificial Societies (YC W25)](https://www.artificialsocieties.com/), Latentix builds dynamic AI personas from real-world data (LinkedIn profiles or text descriptions), visualizes them as an immersive 3D social network, and simulates how your startup idea propagates through that society — showing you exactly who adopts, who objects, and why.
+Inspired by [Artificial Societies (YC W25)](https://www.artificialsocieties.com/), Pollen builds dynamic AI personas from real-world data (LinkedIn profiles or text descriptions), visualizes them as an immersive 3D social network, and simulates how your startup idea propagates through that society — showing you exactly who adopts, who objects, and why.
 
 ## 🎯 The Product
 
@@ -79,7 +79,7 @@ Navigate to http://localhost:5173 and start building societies!
 ## 📂 Project Structure
 
 ```
-latentix/
+pollen/
 ├── client/                    # Frontend (React + Vite)
 │   ├── src/
 │   │   ├── components/

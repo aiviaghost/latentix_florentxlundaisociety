@@ -1,6 +1,6 @@
 # Society builder → idea validation → 3D “simulation” → response
 
-This document describes the **end-to-end product flow** as implemented in the Latentix client today, the **HTTP APIs** the UI expects, and how **responsibilities are split** between frontend and backend. It is meant for **backend alignment** and for **codebase cleanup** (for example, retiring unused WebSocket assumptions).
+This document describes the **end-to-end product flow** as implemented in the Pollen client today, the **HTTP APIs** the UI expects, and how **responsibilities are split** between frontend and backend. It is meant for **backend alignment** and for **codebase cleanup** (for example, retiring unused WebSocket assumptions).
 
 ---
 
