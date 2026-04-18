@@ -6,6 +6,8 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   MarkerType,
+  ReactFlowProvider,
+  useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
 
@@ -24,8 +26,11 @@ const nodeTypes = {
   persona: PersonaNode,
 }
 
-/** Max profile+persona rows before collapsing (layout + perf). */
+/** Max profile rows from index before collapsing (layout + perf). */
 const MAX_PIPELINE_ROWS = 12
+
+/** Max persona cards shown in the pipeline; additional personas roll into an overflow chip. */
+const MAX_PERSONA_PIPELINE_ROWS = 5
 
 /** Layout: card column width (matches Tailwind w-72) + horizontal/vertical rhythm.
  * PersonaNode (traits + tags) is taller than profile cards; keep one shared row pitch
@@ -58,10 +63,30 @@ const defaultEdgeOptions = {
   style: { strokeWidth: 1.5, stroke: 'hsl(var(--primary))' },
 }
 
+function PipelineAutoFit({ layoutSig, nodeCount, rowCount }) {
+  const { fitView } = useReactFlow()
+
+  useEffect(() => {
+    if (nodeCount === 0) return
+    const maxZoom = Math.max(0.2, 1.08 - Math.min(0.78, rowCount * 0.052))
+    const padding = 0.09 + Math.min(0.26, rowCount * 0.016)
+    const id = window.setTimeout(() => {
+      try {
+        fitView({ duration: 380, padding, maxZoom, minZoom: 0.001 })
+      } catch {
+        /* optional */
+      }
+    }, 60)
+    return () => window.clearTimeout(id)
+  }, [layoutSig, nodeCount, rowCount, fitView])
+
+  return null
+}
+
 /**
  * Dynamic pipeline: audience description → profile index → rows → graph → output.
  */
-export default function DynamicPipeline({ query, profiles, personas, graphState }) {
+function DynamicPipelineInner({ query, profiles, personas, graphState }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
@@ -74,6 +99,17 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
       overflowCount: profiles.length - MAX_PIPELINE_ROWS,
     }
   }, [profiles])
+
+  const { personaOverflowCount, personaPairTotal } = useMemo(() => {
+    let pairs = 0
+    for (const profile of displayProfiles) {
+      if (personas.some((p) => p.sourceProfileId === profile.id)) pairs += 1
+    }
+    return {
+      personaPairTotal: pairs,
+      personaOverflowCount: Math.max(0, pairs - MAX_PERSONA_PIPELINE_ROWS),
+    }
+  }, [displayProfiles, personas])
 
   useEffect(() => {
     const COLS = columnXs()
@@ -131,6 +167,9 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
       })
     }
 
+    let personaSlot = 0
+    let lastPersonaRowY = START_Y
+
     displayProfiles.forEach((profile, idx) => {
       const profileId = `profile-${profile.id || idx}`
       const y = START_Y + idx * ROW_HEIGHT
@@ -158,8 +197,9 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
 
       const persona = personas.find((p) => p.sourceProfileId === profile.id)
 
-      if (persona) {
+      if (persona && personaSlot < MAX_PERSONA_PIPELINE_ROWS) {
         const personaId = `persona-${persona.id || idx}`
+        lastPersonaRowY = y
 
         newNodes.push({
           id: personaId,
@@ -193,8 +233,37 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
             type: 'smoothstep',
           })
         }
+
+        personaSlot += 1
       }
     })
+
+    if (personaOverflowCount > 0) {
+      const overflowY = lastPersonaRowY + ROW_HEIGHT + 24
+      newNodes.push({
+        id: 'personas-overflow',
+        type: 'processing',
+        position: { x: COLS.personas, y: overflowY },
+        zIndex: NODE_Z,
+        data: {
+          label: 'More personas',
+          processingType: 'llm',
+          status: 'complete',
+          currentTask: PIPELINE.personaOverflow(personaOverflowCount),
+          processed: personaOverflowCount,
+          total: personaOverflowCount,
+        },
+      })
+      newEdges.push({
+        id: 'index-to-personas-overflow',
+        source: 'profile-index',
+        target: 'personas-overflow',
+        animated: false,
+        style: { stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--muted-foreground))' },
+        type: 'smoothstep',
+      })
+    }
 
     if (overflowCount > 0) {
       const overflowY = START_Y + displayProfiles.length * ROW_HEIGHT + 24
@@ -225,8 +294,11 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
 
     if (personas.length > 0) {
       const graphStatus = graphState?.status || 'idle'
-      const rowCount = Math.max(displayProfiles.length, 1)
-      const midY = START_Y + ((rowCount - 1) * ROW_HEIGHT) / 2
+      const graphRowSpan = Math.max(
+        displayProfiles.length + (overflowCount > 0 ? 1 : 0) + (personaOverflowCount > 0 ? 1 : 0),
+        1
+      )
+      const midY = START_Y + ((graphRowSpan - 1) * ROW_HEIGHT) / 2
 
       newNodes.push({
         id: 'graph-assembly',
@@ -254,7 +326,7 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
             status: 'complete',
             personaCount: personas.length,
             clusters: graphState.clusters || [],
-            personaPreviews: personas.slice(0, 3),
+            personaPreviews: personas.slice(0, 5),
           },
         })
 
@@ -272,7 +344,47 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
 
     setNodes(newNodes)
     setEdges(newEdges)
-  }, [query, profiles, personas, graphState, displayProfiles, overflowCount, setNodes, setEdges])
+  }, [
+    query,
+    profiles,
+    personas,
+    graphState,
+    displayProfiles,
+    overflowCount,
+    personaOverflowCount,
+    setNodes,
+    setEdges,
+  ])
+
+  const layoutSig = useMemo(
+    () =>
+      [
+        query || '',
+        profiles.length,
+        personas.length,
+        displayProfiles.length,
+        overflowCount,
+        personaPairTotal,
+        personaOverflowCount,
+        graphState?.status ?? '',
+        String(graphState?.connectionsBuilt ?? ''),
+      ].join('|'),
+    [
+      query,
+      profiles.length,
+      personas.length,
+      displayProfiles.length,
+      overflowCount,
+      personaPairTotal,
+      personaOverflowCount,
+      graphState,
+    ]
+  )
+
+  const rowCount = Math.max(
+    displayProfiles.length + (overflowCount > 0 ? 1 : 0) + (personaOverflowCount > 0 ? 1 : 0),
+    1
+  )
 
   return (
     <div className="w-full h-full">
@@ -284,12 +396,13 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
         nodeTypes={nodeTypes}
         defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        fitViewOptions={{ padding: 0.32, maxZoom: 1.1, minZoom: 0.01 }}
+        fitViewOptions={{ padding: 0.2, maxZoom: 1.05, minZoom: 0.01 }}
         minZoom={0.001}
         maxZoom={1.25}
         proOptions={{ hideAttribution: true }}
         elevateEdgesOnSelect
       >
+        <PipelineAutoFit layoutSig={layoutSig} nodeCount={nodes.length} rowCount={rowCount} />
         <Background
           color="hsl(var(--muted-foreground))"
           gap={16}
@@ -319,6 +432,16 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
           }}
         />
       </ReactFlow>
+    </div>
+  )
+}
+
+export default function DynamicPipeline(props) {
+  return (
+    <div className="h-full w-full">
+      <ReactFlowProvider>
+        <DynamicPipelineInner {...props} />
+      </ReactFlowProvider>
     </div>
   )
 }

@@ -13,4 +13,6 @@ export const PIPELINE = {
   outputLabel: '3D network',
   profileOverflow: (n) =>
     `+${n} more profile${n === 1 ? '' : 's'} not shown in this view (see header)`,
+  personaOverflow: (n) =>
+    `+${n} more persona${n === 1 ? '' : 's'} in the full graph (only 5 rows shown here)`,
 }

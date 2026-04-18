@@ -31,6 +31,18 @@ export default function App() {
     }
   }, [focusedPersonaId, simSession])
 
+  const focusedPersonaCallout = useMemo(() => {
+    if (focusedPersonaId == null || focusedPersonaId === '') return null
+    const id = String(focusedPersonaId)
+    const row = (simSession?.personaResults || []).find((p) => String(p.persona_id) === id)
+    if (!row || !row.quote) return null
+    return {
+      name: row.name || id,
+      quote: row.quote,
+      reaction: row.reaction,
+    }
+  }, [focusedPersonaId, simSession?.personaResults])
+
   const handleSearch = useCallback(async (query, applyUpdate) => {
     searchAbortRef.current?.abort()
     const ac = new AbortController()
@@ -304,9 +316,6 @@ export default function App() {
                 AI Synthetic Market Simulator
               </span>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {view === 'simulation' ? 'Network simulation' : 'Phase 1: Society Builder'}
-            </div>
           </div>
         </div>
       </header>
@@ -321,6 +330,7 @@ export default function App() {
               graphData={networkGraph}
               simSession={simSession}
               graphSimulationState={graphSimulationState}
+              focusedPersonaCallout={focusedPersonaCallout}
               focusedPersonaId={focusedPersonaId}
               onGraphNodeClick={(node) =>
                 setFocusedPersonaId(node?.id != null && node.id !== '' ? String(node.id) : null)

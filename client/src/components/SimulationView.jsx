@@ -6,6 +6,7 @@ export default function SimulationView({
   graphData,
   simSession,
   graphSimulationState,
+  focusedPersonaCallout,
   focusedPersonaId,
   onGraphNodeClick,
   onFollowUp,
@@ -17,13 +18,15 @@ export default function SimulationView({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
         <div className="relative flex min-h-[38vh] min-w-0 flex-1 overflow-hidden border-b border-border lg:min-h-0 lg:border-b-0 lg:border-r">
           <div className="pointer-events-none absolute left-3 top-2 z-10 hidden max-w-[min(calc(100%-1.5rem),320px)] rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:block">
-            Drag to rotate · scroll to zoom · tap a node (do not drag) to focus their reaction in the console
+            Drag to rotate · scroll to zoom · tap a node (do not drag) to focus; their quote follows as a tooltip near
+            the node
           </div>
           <GraphLegend />
           <div className="absolute inset-0 min-h-0 min-w-0">
             <SocietyGraph
               graphData={graphData}
               simulationState={graphSimulationState}
+              focusedPersonaCallout={focusedPersonaCallout}
               onNodeClick={onGraphNodeClick}
             />
           </div>

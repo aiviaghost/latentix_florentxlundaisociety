@@ -88,38 +88,30 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
 
   return (
     <div className="h-full w-full flex flex-col">
-      <div className="flex-shrink-0 border-b border-border bg-card/50 backdrop-blur-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">Society Builder</h1>
-              <p className="text-sm text-muted-foreground">
-                Audience description → Profile index → Pre-built personas → Graph → simulation
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {profiles.length > 0 && (
-                <>
-                  <Badge variant="secondary" className="gap-1">
-                    <Network className="h-3 w-3" />
-                    {profiles.length} from index
-                  </Badge>
-                  <Badge variant="default" className="gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
-                    {personas.length} personas linked
-                  </Badge>
-                </>
-              )}
-              {(societyId || profiles.length > 0) && (
-                <Button onClick={handleReset} variant="outline" size="sm" className="gap-2">
-                  <RefreshCw className="h-4 w-4" />
-                  New Search
-                </Button>
-              )}
-            </div>
+      {!showSearch && (
+        <div className="flex-shrink-0 border-b border-border bg-card/50 backdrop-blur-sm">
+          <div className="container mx-auto flex items-center justify-end gap-3 px-6 py-3">
+            {profiles.length > 0 && (
+              <>
+                <Badge variant="secondary" className="gap-1">
+                  <Network className="h-3 w-3" />
+                  {profiles.length} matched
+                </Badge>
+                <Badge variant="default" className="gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  {personas.length} personas
+                </Badge>
+              </>
+            )}
+            {(societyId || profiles.length > 0) && (
+              <Button onClick={handleReset} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className="h-4 w-4" />
+                Start over
+              </Button>
+            )}
           </div>
         </div>
-      </div>
+      )}
 
       <div className="flex-1 overflow-hidden relative">
         {showSearch ? (
@@ -175,11 +167,10 @@ export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 className="h-5 w-5 text-green-400" />
-                      <CardTitle className="text-base">Society complete</CardTitle>
+                      <CardTitle className="text-base">Audience ready</CardTitle>
                     </div>
                     <CardDescription>
-                      {personas.length} personas are linked in the graph. Enter your idea in the bar below to run a
-                      simulation and explore reactions on the network.
+                      {personas.length} personas in the network. Add your idea below to simulate how they react.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">

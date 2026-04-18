@@ -1,16 +1,11 @@
 import { useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
+import { Separator } from './ui/separator'
+import { cn } from '../lib/utils'
 
 function linkEndpointId(nodeOrId) {
   if (nodeOrId && typeof nodeOrId === 'object' && 'id' in nodeOrId) return nodeOrId.id
   return nodeOrId
-}
-
-function linkTouchesIdSet(link, idSet) {
-  if (!idSet?.size) return false
-  const a = String(linkEndpointId(link.source))
-  const b = String(linkEndpointId(link.target))
-  return idSet.has(a) || idSet.has(b)
 }
 
 /** Map sentiment score -1..1 to hex color string (red → green). */
@@ -33,21 +28,23 @@ function hexToRgb(hex) {
   return { r, g, b }
 }
 
-function SocietyGraph({ graphData, simulationState, onNodeClick }) {
+function popoverPositionStyle(x, y) {
+  return {
+    left: x,
+    top: y,
+    transform: 'translate(-50%, calc(-100% - 14px))',
+  }
+}
+
+function SocietyGraph({ graphData, simulationState, focusedPersonaCallout, onNodeClick }) {
   const graphRef = useRef()
   const containerRef = useRef(null)
+  const calloutRef = useRef(null)
+  const focusIdRef = useRef('')
   const [dimensions, setDimensions] = useState({ width: 600, height: 480 })
-
-  const highlightIdSet = useMemo(() => {
-    const s = simulationState
-    if (!s) return null
-    const set = new Set()
-    if (s.focusNodeId != null && s.focusNodeId !== '') set.add(String(s.focusNodeId))
-    for (const id of s.pendingPersonaIds || []) {
-      if (id != null && id !== '') set.add(String(id))
-    }
-    return set.size ? set : null
-  }, [simulationState])
+  const [tipScreen, setTipScreen] = useState(null)
+  const [hoverId, setHoverId] = useState(null)
+  const [hoverScreen, setHoverScreen] = useState(null)
 
   const data = useMemo(() => {
     if (!graphData?.nodes?.length) return { nodes: [], links: [] }
@@ -79,8 +76,6 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
       const map = simulationState?.sentimentByPersonaId || {}
       const reacted = Object.keys(map).length > 0
       const has = map[id] != null && Number.isFinite(map[id])
-      // three-forcegraph only supports a numeric graph-level `nodeOpacity`; per-node opacity
-      // must come from alpha in the color string (material opacity = nodeOpacity * colorAlpha).
       if (streaming && reacted && !has) {
         const rgb = hexToRgb(hex) || { r: 139, g: 92, b: 246 }
         return `rgba(${rgb.r},${rgb.g},${rgb.b},0.78)`
@@ -106,6 +101,85 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
   )
 
   const focusKey = simulationState?.focusNodeId != null ? String(simulationState.focusNodeId) : ''
+
+  useEffect(() => {
+    calloutRef.current = focusedPersonaCallout
+  }, [focusedPersonaCallout])
+
+  useEffect(() => {
+    focusIdRef.current = focusKey
+  }, [focusKey])
+
+  const syncScreenPopovers = useCallback(() => {
+    const fg = graphRef.current
+    if (!fg || typeof fg.graph2ScreenCoords !== 'function') {
+      setTipScreen(null)
+      setHoverScreen(null)
+      return
+    }
+
+    const fc = calloutRef.current
+    const fid = focusIdRef.current
+    if (fc && fid) {
+      const graph = typeof fg.graphData === 'function' ? fg.graphData() : null
+      const node = graph?.nodes?.find((n) => String(n.id) === fid)
+      if (node && node.x !== undefined && Number.isFinite(node.x)) {
+        try {
+          const s = fg.graph2ScreenCoords(node.x, node.y, node.z)
+          if (s && Number.isFinite(s.x) && Number.isFinite(s.y)) {
+            setTipScreen({ x: s.x, y: s.y })
+          }
+        } catch {
+          setTipScreen(null)
+        }
+      } else {
+        setTipScreen(null)
+      }
+    } else {
+      setTipScreen(null)
+    }
+
+    const hid = hoverId
+    if (hid && !fc) {
+      const graph = typeof fg.graphData === 'function' ? fg.graphData() : null
+      const node = graph?.nodes?.find((n) => String(n.id) === hid)
+      if (node && node.x !== undefined && Number.isFinite(node.x)) {
+        try {
+          const s = fg.graph2ScreenCoords(node.x, node.y, node.z)
+          if (s && Number.isFinite(s.x) && Number.isFinite(s.y)) {
+            setHoverScreen({
+              x: s.x,
+              y: s.y,
+              name: node.name || node.id,
+              archetype: node.archetype,
+            })
+          }
+        } catch {
+          setHoverScreen(null)
+        }
+      } else {
+        setHoverScreen(null)
+      }
+    } else {
+      setHoverScreen(null)
+    }
+  }, [hoverId, focusedPersonaCallout])
+
+  useEffect(() => {
+    const active = focusedPersonaCallout || hoverId
+    if (!active) {
+      setTipScreen(null)
+      setHoverScreen(null)
+      return
+    }
+    let raf = 0
+    const loop = () => {
+      syncScreenPopovers()
+      raf = requestAnimationFrame(loop)
+    }
+    raf = requestAnimationFrame(loop)
+    return () => cancelAnimationFrame(raf)
+  }, [focusedPersonaCallout, hoverId, syncScreenPopovers])
 
   useEffect(() => {
     const fg = graphRef.current
@@ -147,7 +221,22 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
     graphRef.current?.refresh?.()
   }, [sentimentSig, pendingSig, focusKey, simulationState?.streaming])
 
-  const streaming = simulationState?.streaming
+  const nodeCount = data.nodes.length
+
+  useEffect(() => {
+    if (nodeCount === 0) return
+    const fg = graphRef.current
+    if (!fg || typeof fg.zoomToFit !== 'function') return
+    const padding = Math.min(160, 36 + nodeCount * 2)
+    const t = window.setTimeout(() => {
+      try {
+        fg.zoomToFit(700, padding)
+      } catch {
+        /* optional */
+      }
+    }, 180)
+    return () => window.clearTimeout(t)
+  }, [nodeCount, dimensions.width, dimensions.height])
 
   useEffect(() => {
     const el = containerRef.current
@@ -166,8 +255,55 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
     return () => ro.disconnect()
   }, [])
 
+  const onNodeHover = useCallback((node) => {
+    setHoverId(node != null && node.id != null && node.id !== '' ? String(node.id) : null)
+  }, [])
+
   return (
-    <div ref={containerRef} className="h-full w-full min-h-0 min-w-0">
+    <div ref={containerRef} className="relative h-full w-full min-h-0 min-w-0">
+      {hoverScreen && !focusedPersonaCallout && (
+        <div
+          className={cn(
+            'pointer-events-none absolute z-40 max-h-[min(40vh,300px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-border/80 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-1 ring-border/40 backdrop-blur-md'
+          )}
+          style={popoverPositionStyle(hoverScreen.x, hoverScreen.y)}
+          role="dialog"
+          aria-label="Persona preview"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Persona</p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{hoverScreen.name}</p>
+          {hoverScreen.archetype ? (
+            <p className="mt-0.5 text-xs text-muted-foreground">{hoverScreen.archetype}</p>
+          ) : null}
+          <Separator className="my-2.5 bg-border/60" />
+          <p className="text-[11px] leading-relaxed text-muted-foreground">
+            Synthetic audience member. Scroll or drag to orbit. <span className="text-foreground/90">Tap once</span>{' '}
+            (without dragging) during a run to pin their reaction and quote.
+          </p>
+        </div>
+      )}
+
+      {focusedPersonaCallout && tipScreen && (
+        <div
+          className={cn(
+            'pointer-events-none absolute z-40 max-h-[min(42vh,320px)] w-[min(20rem,calc(100%-1.5rem))] overflow-y-auto rounded-2xl border border-primary/45 bg-popover/95 px-4 py-3 text-popover-foreground shadow-2xl ring-2 ring-primary/25 backdrop-blur-md'
+          )}
+          style={popoverPositionStyle(tipScreen.x, tipScreen.y)}
+          role="dialog"
+          aria-label="Focused persona reaction"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-primary">Focused persona</p>
+          <p className="mt-1 text-sm font-semibold leading-snug text-foreground">{focusedPersonaCallout.name}</p>
+          {focusedPersonaCallout.reaction ? (
+            <p className="mt-0.5 text-xs capitalize text-muted-foreground">{focusedPersonaCallout.reaction}</p>
+          ) : null}
+          <Separator className="my-2.5 bg-border/60" />
+          <p className="text-[13px] leading-relaxed text-foreground/95">
+            &ldquo;{focusedPersonaCallout.quote}&rdquo;
+          </p>
+        </div>
+      )}
+
       <ForceGraph3D
         ref={graphRef}
         width={dimensions.width}
@@ -179,31 +315,15 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
         nodeColor={nodeColor}
         nodeVal={nodeVal}
         nodeOpacity={1}
-        nodeLabel={(node) => `${node.archetype || 'Persona'}: ${node.name || node.id}`}
+        nodeLabel={() => ''}
 
-        linkDirectionalParticles={(link) =>
-          streaming && highlightIdSet && linkTouchesIdSet(link, highlightIdSet) ? 9 : 0
-        }
-        linkDirectionalParticleSpeed={(link) =>
-          streaming && highlightIdSet && linkTouchesIdSet(link, highlightIdSet) ? 0.018 : 0.004
-        }
-        linkDirectionalParticleWidth={(link) =>
-          streaming && highlightIdSet && linkTouchesIdSet(link, highlightIdSet) ? 2.2 : 0.35
-        }
-        linkDirectionalParticleColor={() => (streaming ? '#93c5fd' : '#60a5fa')}
-
-        linkColor={(link) => {
-          return streaming && highlightIdSet && linkTouchesIdSet(link, highlightIdSet)
-            ? '#7dd3fc'
-            : 'rgba(148,163,184,0.42)'
-        }}
-        linkWidth={(link) => {
-          return streaming && highlightIdSet && linkTouchesIdSet(link, highlightIdSet) ? 3 : 0.85
-        }}
+        linkVisibility={() => false}
+        linkDirectionalParticles={0}
 
         backgroundColor="#050510"
 
         onNodeClick={onNodeClick}
+        onNodeHover={onNodeHover}
 
         d3AlphaDecay={0.022}
         d3VelocityDecay={0.32}

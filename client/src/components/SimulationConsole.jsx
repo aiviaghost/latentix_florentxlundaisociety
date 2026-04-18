@@ -69,12 +69,12 @@ function SynthesisReactionMix({ positive, negative, neutral }) {
 function MeanSentimentGauge({ mean }) {
   if (!Number.isFinite(mean)) return null
   const pct = Math.round(((mean + 1) / 2) * 100)
-  const label = `Mean sentiment ${mean.toFixed(2)} on a scale from negative one to positive one`
+  const label = `Mean sentiment ${pct} percent; scale is negative one hostile to positive one enthusiastic`
   return (
     <div className="space-y-1" role="img" aria-label={label}>
       <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Mean sentiment</p>
       <div className="flex items-center gap-2">
-        <span className="font-mono text-sm tabular-nums text-foreground">{mean.toFixed(2)}</span>
+        <span className="font-mono text-sm tabular-nums text-foreground">{pct}%</span>
         <div className="relative h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-gradient-to-r from-rose-600 via-slate-500 to-emerald-500">
           <div
             className="absolute top-0 h-full w-1 rounded-sm bg-white shadow"
@@ -82,6 +82,7 @@ function MeanSentimentGauge({ mean }) {
           />
         </div>
       </div>
+      <p className="text-[10px] text-muted-foreground/90">−1 hostile … +1 enthusiastic</p>
     </div>
   )
 }
@@ -458,7 +459,13 @@ export default function SimulationConsole({
                         )}
                       >
                         <div className="font-medium text-foreground">{p.name}</div>
-                        <p className="mt-1 text-muted-foreground leading-relaxed">&ldquo;{p.quote}&rdquo;</p>
+                        {!isFocus && p.quote ? (
+                          <p className="mt-1 text-muted-foreground leading-relaxed">&ldquo;{p.quote}&rdquo;</p>
+                        ) : isFocus ? (
+                          <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                            Quote appears in a tooltip next to their node.
+                          </p>
+                        ) : null}
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
                           <Badge variant="outline" className="text-[10px] font-normal">
                             {p.reaction}

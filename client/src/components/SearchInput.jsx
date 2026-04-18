@@ -14,18 +14,18 @@ export default function SearchInput({ onSearch, loading, error }) {
     }
   }
 
-  const wordCount = query.trim().split(/\s+/).filter(w => w).length
+  const wordCount = query.trim().split(/\s+/).filter((w) => w).length
 
   return (
     <Card className="w-full max-w-2xl shadow-xl">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-primary" />
-          Society audience
+        <CardTitle className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
+          <Search className="h-6 w-6 text-primary" aria-hidden />
+          Build your audience
         </CardTitle>
-        <CardDescription>
-          Describe the society you want to simulate. We match your description to stored LinkedIn profiles
-          in our index and attach each profile&apos;s pre-built persona, then assemble the graph.
+        <CardDescription className="text-base leading-relaxed">
+          Who is your audience? Describe them in plain language—we match your description to indexed profiles and build
+          a synthetic network you can test ideas on.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -40,7 +40,7 @@ export default function SearchInput({ onSearch, loading, error }) {
           )}
           <div className="space-y-2">
             <Textarea
-              placeholder="e.g., European B2B SaaS founders, 25-40 years old, working in fintech or AI, with product management background"
+              placeholder="e.g. Product managers at mid-size EU fintechs, ex-consulting, active on LinkedIn about AI compliance"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               rows={5}
@@ -50,43 +50,28 @@ export default function SearchInput({ onSearch, loading, error }) {
             />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{wordCount} words</span>
-              {query && (
+              {query.trim() && (
                 <span className="flex items-center gap-1">
-                  <Sparkles className="h-3 w-3" />
-                  Matches index + pre-built personas
+                  <Sparkles className="h-3 w-3" aria-hidden />
+                  Ready when you are
                 </span>
               )}
             </div>
           </div>
 
-          <Button
-            type="submit"
-            disabled={loading || !query.trim()}
-            className="w-full"
-            size="lg"
-          >
+          <Button type="submit" disabled={loading || !query.trim()} className="w-full" size="lg">
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Starting build…
+                Building…
               </>
             ) : (
               <>
                 <Search className="mr-2 h-4 w-4" />
-                Build society from description
+                Build audience
               </>
             )}
           </Button>
-
-          <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1">
-            <p className="text-xs font-medium text-foreground">How it works:</p>
-            <ul className="text-xs text-muted-foreground space-y-0.5 ml-4 list-disc">
-              <li>Profiles are matched from a pre-scraped index (not live LinkedIn)</li>
-              <li>Each hit pairs a stored profile with its pre-generated persona</li>
-              <li>Graph assembly connects personas; the 3D view is the handoff for exploration</li>
-              <li>The pipeline animates the stages; demo mode runs entirely in the browser</li>
-            </ul>
-          </div>
         </form>
       </CardContent>
     </Card>
