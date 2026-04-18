@@ -3,6 +3,8 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import societyRouter from './routes/society.js'
 import simulateRouter from './routes/simulate.js'
+import simulateStreamRouter from './routes/simulateStream.js'
+import simulatePersonasStreamRouter from './routes/simulatePersonasStream.js'
 import personaRouter from './routes/persona.js'
 
 // Load environment variables
@@ -29,6 +31,8 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/society', societyRouter)
 app.use('/api/simulate', simulateRouter)
+app.use('/api/simulate/stream', simulateStreamRouter)
+app.use('/api/simulate/personas-stream', simulatePersonasStreamRouter)
 app.use('/api/persona', personaRouter)
 
 // Error handling

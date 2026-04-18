@@ -1,7 +1,7 @@
 import { useState, useRef, useLayoutEffect, useCallback } from 'react'
 import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
-import { Loader2, Send, Sparkles } from 'lucide-react'
+import { Send, Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 const MIN_TEXTAREA_PX = 52
@@ -13,7 +13,6 @@ const getMaxTextareaPx = () => Math.round(window.innerHeight * 0.3)
  */
 export default function FloatingIdeaComposer({ onSubmit, disabled }) {
   const [idea, setIdea] = useState('')
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const taRef = useRef(null)
 
@@ -37,19 +36,16 @@ export default function FloatingIdeaComposer({ onSubmit, disabled }) {
     return () => window.removeEventListener('resize', onResize)
   }, [syncTextareaHeight])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
     const trimmed = idea.trim()
     if (!trimmed || !onSubmit) return
     setError('')
-    setLoading(true)
     try {
-      await onSubmit({ ideaPrompt: trimmed })
+      onSubmit({ ideaPrompt: trimmed })
       setIdea('')
     } catch (err) {
       setError(err.response?.data?.error || err.message || 'Simulation failed')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -81,7 +77,7 @@ export default function FloatingIdeaComposer({ onSubmit, disabled }) {
                 rows={1}
                 value={idea}
                 onChange={(e) => setIdea(e.target.value)}
-                disabled={loading || disabled}
+                disabled={disabled}
                 placeholder="Product, pitch, or message to get reactions…"
                 className={cn(
                   'min-h-[52px] max-h-[30vh] resize-none rounded-xl border-border/50 bg-background/40 py-2.5 text-sm',
@@ -95,23 +91,16 @@ export default function FloatingIdeaComposer({ onSubmit, disabled }) {
             <Button
               type="submit"
               size="default"
-              disabled={loading || disabled || !idea.trim()}
+              disabled={disabled || !idea.trim()}
               className={cn(
                 'h-11 shrink-0 gap-2 rounded-xl px-5 font-medium shadow-md sm:h-[52px] sm:self-end',
                 'bg-primary text-primary-foreground hover:bg-primary/92'
               )}
             >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Running
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 opacity-90" />
-                  Simulate
-                </>
-              )}
+              <>
+                <Send className="h-4 w-4 opacity-90" />
+                Simulate
+              </>
             </Button>
           </form>
         </div>

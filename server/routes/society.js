@@ -7,27 +7,66 @@ const router = express.Router()
  * POST /api/society/search
  *
  * Generate an audience from a natural-language description using cached profiles.
+ * Response: text/event-stream; each event is `data: { "type": "...", ... }\n\n`.
  *
  * Body: { query: string, persona_count?: number }
  */
-router.post('/search', async (req, res, next) => {
-  try {
-    const { query, persona_count } = req.body
+router.post('/search', async (req, res) => {
+  const { query, persona_count } = req.body
 
-    if (!query || typeof query !== 'string' || !query.trim()) {
-      return res.status(400).json({ error: 'query is required' })
+  if (!query || typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({ error: 'query is required' })
+  }
+
+  const abort = new AbortController()
+  const onResClose = () => {
+    if (!res.writableEnded) {
+      abort.abort()
     }
+  }
+  res.on('close', onResClose)
 
+  const teardown = () => res.off('close', onResClose)
+
+  try {
     console.log(`Generating audience for query: "${query}"`)
 
-    const society = await generateAudience({
+    res.status(200)
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
+    res.setHeader('Cache-Control', 'no-cache, no-transform')
+    res.setHeader('Connection', 'keep-alive')
+    res.setHeader('X-Accel-Buffering', 'no')
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders()
+    }
+
+    const emit = (type, data) => {
+      if (res.writableEnded || abort.signal.aborted) return
+      res.write(`data: ${JSON.stringify({ type, ...data })}\n\n`)
+    }
+
+    await generateAudience({
       description: query,
       persona_count: persona_count || 30,
+      onEvent: emit,
+      signal: abort.signal,
     })
-
-    res.json(society)
   } catch (error) {
-    next(error)
+    if (error?.name !== 'AbortError') {
+      console.error('generateAudience failed:', error)
+      if (!res.writableEnded) {
+        try {
+          res.write(`data: ${JSON.stringify({ type: 'error', message: error.message || 'Search failed' })}\n\n`)
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } finally {
+    teardown()
+    if (!res.writableEnded) {
+      res.end()
+    }
   }
 })
 

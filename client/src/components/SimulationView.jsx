@@ -1,55 +1,46 @@
-import { useMemo, useState } from 'react'
 import SocietyGraph from './SocietyGraph'
-import SimulationResultPanel from './SimulationResultPanel'
-import { useSimulationPlayback } from '../hooks/useSimulationPlayback'
-import { Button } from './ui/button'
-import { ArrowLeft } from 'lucide-react'
+import SimulationConsole from './SimulationConsole'
+import GraphLegend from './GraphLegend'
 
 export default function SimulationView({
   graphData,
-  playbook,
-  result,
+  simSession,
+  graphSimulationState,
+  focusedPersonaId,
+  onGraphNodeClick,
+  onFollowUp,
+  onAbortStream,
   onBack,
 }) {
-  const [playbackDone, setPlaybackDone] = useState(false)
-
-  const playbackOptions = useMemo(
-    () => ({
-      intervalMs: 1500,
-      onComplete: () => setPlaybackDone(true),
-    }),
-    []
-  )
-
-  const playbookForPlayback = graphData && playbook?.length > 0 ? playbook : []
-
-  const { simulationState, skip } = useSimulationPlayback(playbookForPlayback, playbackOptions)
-
-  const showPlaybackChrome = playbookForPlayback.length > 0 && !playbackDone
-
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
-      <div className="flex-shrink-0 flex items-center gap-2 border-b border-border px-4 py-2 bg-card/80">
-        <Button type="button" variant="outline" size="sm" className="gap-2" onClick={onBack}>
-          <ArrowLeft className="h-4 w-4" />
-          Back to builder
-        </Button>
-        <span className="text-sm text-muted-foreground hidden sm:inline">
-          Drag to rotate, scroll to zoom
-        </span>
-      </div>
-      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="min-h-[40vh] flex-1 border-b border-border lg:min-h-0 lg:border-b-0 lg:border-r">
-          <SocietyGraph graphData={graphData} simulationState={simulationState} />
+    <div className="flex h-full min-h-0 min-w-0 flex-col bg-background">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-row">
+        <div className="relative flex min-h-[38vh] min-w-0 flex-1 overflow-hidden border-b border-border lg:min-h-0 lg:border-b-0 lg:border-r">
+          <div className="pointer-events-none absolute left-3 top-2 z-10 hidden max-w-[min(calc(100%-1.5rem),320px)] rounded-md border border-border/60 bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm sm:block">
+            Drag to rotate · scroll to zoom · tap a node (do not drag) to focus their reaction in the console
+          </div>
+          <GraphLegend />
+          <div className="absolute inset-0 min-h-0 min-w-0">
+            <SocietyGraph
+              graphData={graphData}
+              simulationState={graphSimulationState}
+              onNodeClick={onGraphNodeClick}
+            />
+          </div>
         </div>
-        <div className="w-full shrink-0 overflow-y-auto bg-muted/20 p-3 lg:w-[min(420px,100%)]">
-          <SimulationResultPanel
-            headline={result?.headline}
-            narrative={result?.narrative}
-            summary={result?.summary}
-            playbackActive={showPlaybackChrome && simulationState?.isRunning}
-            onSkipPlayback={skip}
-          />
+        <div className="relative z-20 flex h-[min(52vh,560px)] w-full min-w-0 shrink-0 flex-col overflow-hidden bg-background lg:h-full lg:w-[min(480px,100%)] lg:max-w-[40vw] lg:shrink-0">
+          {simSession && (
+            <SimulationConsole
+              status={simSession.status}
+              error={simSession.error}
+              rounds={simSession.rounds}
+              personaResults={simSession.personaResults}
+              focusedPersonaId={focusedPersonaId}
+              onFollowUp={onFollowUp}
+              onAbort={onAbortStream}
+              onBack={onBack}
+            />
+          )}
         </div>
       </div>
     </div>

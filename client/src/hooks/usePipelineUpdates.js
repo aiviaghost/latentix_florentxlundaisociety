@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
 import { scheduleSimulatedPipeline } from '../lib/pipelineSimulation'
 
+const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
+
 /**
  * @param {string|null} societyId
  * @param {boolean} enabled
@@ -40,13 +42,28 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
         ])
         break
 
-      case 'persona_complete':
-        setPersonas((prev) =>
-          prev.map((p) =>
-            p.id === update.persona.id ? { ...p, ...update.persona, status: 'ready' } : p
-          )
-        )
+      case 'persona_complete': {
+        const incoming = update.persona
+        setPersonas((prev) => {
+          const sp = incoming?.sourceProfileId
+          if (sp) {
+            const idx = prev.findIndex((p) => p.sourceProfileId === sp || p.id === sp)
+            if (idx >= 0) {
+              return prev.map((p, i) =>
+                i === idx ? { ...p, ...incoming, status: 'ready' } : p
+              )
+            }
+          }
+          const idxById = prev.findIndex((p) => p.id === incoming?.id)
+          if (idxById >= 0) {
+            return prev.map((p, i) =>
+              i === idxById ? { ...p, ...incoming, status: 'ready' } : p
+            )
+          }
+          return [...prev, { ...incoming, status: 'ready' }]
+        })
         break
+      }
 
       case 'graph_progress':
         setGraphState({
@@ -73,11 +90,15 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
   }, [])
 
   useEffect(() => {
-    if (!enabled || !societyId || !nodes.length) return
-    const cancel = scheduleSimulatedPipeline(applyUpdate, { query: simulationQuery, nodes, links })
+    if (pipelineLive) return
+    if (!enabled || !societyId || societyId === 'loading' || !nodes.length) return
+    const cancel = scheduleSimulatedPipeline(applyUpdate, {
+      query: simulationQuery,
+      nodes,
+      links,
+    })
     return cancel
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [societyId, enabled])
+  }, [societyId, enabled, simulationQuery, nodes, links, applyUpdate])
 
   const reset = useCallback(() => {
     setProfiles([])
@@ -86,5 +107,5 @@ export default function usePipelineUpdates(societyId, enabled = false, options =
     setIsComplete(false)
   }, [])
 
-  return { profiles, personas, graphState, isComplete, reset }
+  return { profiles, personas, graphState, isComplete, reset, applyUpdate }
 }

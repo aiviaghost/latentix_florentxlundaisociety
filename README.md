@@ -15,8 +15,8 @@ Inspired by [Artificial Societies (YC W25)](https://www.artificialsocieties.com/
 
 **Phase 2: Test Your Idea (30 seconds)**
 - Paste your startup pitch
-- Watch the idea spread node-by-node through the network
-- See real-time reactions, adoption metrics, and key objections
+- See personas react in real time in the console, with the graph tinting by sentiment
+- Click nodes to focus a persona; final headline, narrative, and metrics arrive with the stream summary
 
 ## 🛠️ Tech Stack
 
@@ -235,9 +235,17 @@ OR for LinkedIn mode:
 
 ---
 
+### POST `/api/society/search`
+
+Builds a society from a natural-language audience description. Returns **`text/event-stream`**: each line is `data: { "type": "...", ... }\n\n` (see `docs/SOCIETY_BUILDER_SIMULATION_FLOW.md`). The client buffers the stream and resolves with `{ society_id, nodes, links, metadata }`.
+
+### POST `/api/simulate/personas-stream`
+
+Streams **per-persona** reactions (Claude via `respondAsPersona`) with bounded concurrency, then a **`summary`** object (headline, narrative, quotes, metrics). The React app uses this as the primary simulation path.
+
 ### POST `/api/simulate`
 
-Run a simulation on a generated society.
+Run a **single-shot** summary on a society (fallback if the persona stream fails).
 
 **Request Body**:
 ```json

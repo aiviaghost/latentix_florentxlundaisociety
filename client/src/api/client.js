@@ -1,11 +1,12 @@
 import axios from 'axios'
+import { consumeFramedSseReader, consumeSocietySearchSseReader } from '../lib/sseReader.js'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 /**
- * Society Builder streaming: when `VITE_PIPELINE_LIVE` is not `"true"`, the UI
- * runs a client-side simulated pipeline (no POST /society/search required).
- * Set `VITE_PIPELINE_LIVE=true` to call `generateAudience` and WebSocket/polling instead.
+ * Society Builder: `VITE_PIPELINE_LIVE === 'true'` forwards each streamed server event to
+ * `onEvent` while the search runs. When not live, `onEvent` is omitted and the client runs
+ * `scheduleSimulatedPipeline` after the graph is returned (see `usePipelineUpdates`).
  */
 
 const apiClient = axios.create({
@@ -20,25 +21,90 @@ const apiClient = axios.create({
  * API CONTRACT
  *
  * This file defines the contract between frontend and backend.
- * Backend team (Person B) should implement these exact endpoints and response formats.
  */
 
 const api = {
   /**
-   * Generate an audience from a natural-language description.
+   * Generate an audience from a natural-language description (POST /society/search, SSE).
    *
-   * @param {string} query - Natural language description of target audience
+   * @param {string} query
    * @param {number} [persona_count]
-   *
+   * @param {((evt: { type: string } & Record<string, unknown>) => void) | null} [onEvent] — per `data:` record; omit when buffered-only
+   * @param {{ signal?: AbortSignal }} [options]
    * @returns {Promise<Object>} { society_id, status, nodes, links, metadata }
    */
-  async generateAudience(query, persona_count) {
-    const response = await apiClient.post('/society/search', { query, persona_count })
-    return response.data
+  async generateAudience(query, persona_count, onEvent, options = {}) {
+    const { signal } = options
+    const res = await fetch(`${API_BASE_URL}/society/search`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify({ query, persona_count }),
+      signal,
+    })
+
+    if (!res.ok || !res.body) {
+      let msg = `HTTP ${res.status}`
+      try {
+        const errJson = await res.json()
+        if (errJson?.error) msg = errJson.error
+      } catch {
+        try {
+          const t = await res.text()
+          if (t) msg = t.slice(0, 200)
+        } catch {
+          /* ignore */
+        }
+      }
+      throw new Error(msg)
+    }
+
+    const reader = res.body.getReader()
+    let merged = null
+    let streamError = null
+
+    await consumeSocietySearchSseReader(
+      reader,
+      (record) => {
+        if (!record?.type) return
+        if (record.type === 'error') {
+          streamError = new Error(record.message || 'Search failed')
+          return
+        }
+        if (onEvent) onEvent(record)
+        if (record.type === 'graph_complete' && record.nodes) {
+          merged = {
+            ...(merged || {}),
+            nodes: record.nodes,
+            links: record.links || [],
+            status: 'complete',
+          }
+        }
+        if (record.type === 'society_ready' && record.society_id) {
+          merged = { ...(merged || {}), society_id: record.society_id }
+        }
+      },
+      { signal }
+    )
+
+    if (streamError) throw streamError
+    if (!merged?.society_id || !merged.nodes?.length) {
+      throw new Error('Stream ended without a complete society payload')
+    }
+
+    return {
+      society_id: merged.society_id,
+      status: merged.status || 'complete',
+      nodes: merged.nodes,
+      links: merged.links || [],
+      metadata: { total_personas: merged.nodes.length },
+    }
   },
 
   /**
-   * Get a previously generated society (used by live polling fallback).
+   * Get a previously generated society (used by the live polling fallback).
    *
    * @param {string} societyId
    * @returns {Promise<Object>}
@@ -52,25 +118,7 @@ const api = {
    * Run a simulation on a society
    *
    * @param {Object} config
-   * @param {string} config.society_id - ID of the society
-   * @param {string} [config.content] - Idea / pitch (legacy; use idea_prompt preferred)
-   * @param {string} [config.idea_prompt] - Idea or message to test
-   * @param {string} [config.seed_strategy] - ignored by current server (kept for compatibility)
-   * @param {{ nodes: Array, links: Array }} [config.society_snapshot] - When society_id is not
-   *   stored server-side (e.g. client sim_*), send the graph from the builder.
-   *
-   * @returns {Promise<Object>} Response format:
-   * {
-   *   society_id: string,
-   *   simulation: {
-   *     headline: string,
-   *     narrative: string,
-   *     quotes: Array<{ persona_id?: string, name: string, archetype?: string, quote: string, sentiment?: string }>,
-   *     metrics?: { adoption_rate?: number, positive_count?: number, negative_count?: number, neutral_count?: number }
-   *   },
-   *   graph: { nodes, links }
-   * }
-   * Playback / 3D highlights are generated on the client from `graph` + `simulation.quotes`.
+   * @returns {Promise<Object>}
    */
   async runSimulation(config) {
     const response = await apiClient.post('/simulate', config)
@@ -78,30 +126,198 @@ const api = {
   },
 
   /**
-   * Test a single persona against a prompt (for A/B testing)
+   * Stream a simulation over **POST /api/simulate/stream** using `fetch` (not axios).
    *
    * @param {Object} config
-   * @param {Object} config.persona - Persona object with traits, archetype, etc.
-   * @param {string} config.prompt - The idea, message, or copy to test
-   *
-   * @returns {Promise<Object>} Response format:
-   * {
-   *   reaction: 'positive' | 'negative' | 'neutral',
-   *   action: 'share' | 'engage' | 'debate' | 'ignore',
-   *   sentiment_score: number,  // -1.0 to 1.0
-   *   quote: string,
-   *   would_share: boolean,
-   *   reasoning: string
-   * }
+   * @param {{ onStatus?: (d: object) => void, onNarrativeDelta?: (d: { text: string }) => void, onComplete?: (d: object) => void, onError?: (d: { message: string }) => void }} handlers
+   * @param {{ signal?: AbortSignal }} [options]
+   * @returns {Promise<object|null>}
    */
+  async runSimulationStream(config, handlers = {}, options = {}) {
+    const { signal } = options
+    const { onStatus, onNarrativeDelta, onComplete, onError } = handlers
+
+    const res = await fetch(`${API_BASE_URL}/simulate/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify(config),
+      signal,
+    })
+
+    if (!res.ok || !res.body) {
+      let msg = `HTTP ${res.status}`
+      try {
+        const errJson = await res.json()
+        if (errJson?.error) msg = errJson.error
+      } catch {
+        try {
+          const t = await res.text()
+          if (t) msg = t.slice(0, 200)
+        } catch {
+          /* ignore */
+        }
+      }
+      const err = { message: msg }
+      onError?.(err)
+      throw new Error(msg)
+    }
+
+    const reader = res.body.getReader()
+    let completePayload = null
+
+    try {
+      await consumeFramedSseReader(
+        reader,
+        (event, data) => {
+          if (event === 'complete' && data?.simulation) {
+            completePayload = data
+            onComplete?.(data)
+            return
+          }
+          if (!data && event !== 'status') return
+          switch (event) {
+            case 'status':
+              onStatus?.(data || {})
+              break
+            case 'narrative_delta':
+              if (data?.text) onNarrativeDelta?.(data)
+              break
+            case 'error':
+              onError?.(data || { message: 'Stream error' })
+              break
+            default:
+              break
+          }
+        },
+        { signal }
+      )
+    } catch (e) {
+      if (signal?.aborted) {
+        return completePayload
+      }
+      throw e
+    }
+
+    if (!completePayload && !signal?.aborted) {
+      const err = new Error('Stream ended without a complete payload')
+      onError?.({ message: err.message })
+      throw err
+    }
+
+    return completePayload
+  },
+
+  /**
+   * Stream per-persona reactions: **POST /api/simulate/personas-stream** (framed SSE).
+   *
+   * @param {Object} config — society_id, idea_prompt | content, society_snapshot?, conversation?, persona_sample_cap? (optional; omit to run all graph nodes up to server max)
+   * @param {{
+   *   onStatus?: (d: object) => void,
+   *   onPersonaStart?: (d: { persona_id: string }) => void,
+   *   onPersonaComplete?: (d: object) => void,
+   *   onSummary?: (d: object) => void,
+   *   onComplete?: (d: object) => void,
+   *   onError?: (d: { message: string }) => void,
+   * }} handlers
+   * @param {{ signal?: AbortSignal }} [options]
+   */
+  async runPersonasSimulationStream(config, handlers = {}, options = {}) {
+    const { signal } = options
+    const {
+      onStatus,
+      onPersonaStart,
+      onPersonaComplete,
+      onSummary,
+      onComplete,
+      onError,
+    } = handlers
+
+    const res = await fetch(`${API_BASE_URL}/simulate/personas-stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+      },
+      body: JSON.stringify(config),
+      signal,
+    })
+
+    if (!res.ok || !res.body) {
+      let msg = `HTTP ${res.status}`
+      try {
+        const errJson = await res.json()
+        if (errJson?.error) msg = errJson.error
+      } catch {
+        try {
+          const t = await res.text()
+          if (t) msg = t.slice(0, 200)
+        } catch {
+          /* ignore */
+        }
+      }
+      onError?.({ message: msg })
+      throw new Error(msg)
+    }
+
+    const reader = res.body.getReader()
+    let completePayload = null
+    let sawSummary = false
+
+    try {
+      await consumeFramedSseReader(
+        reader,
+        (event, data) => {
+          switch (event) {
+            case 'status':
+              onStatus?.(data || {})
+              break
+            case 'persona_start':
+              onPersonaStart?.(data || {})
+              break
+            case 'persona_complete':
+              onPersonaComplete?.(data || {})
+              break
+            case 'summary':
+              sawSummary = true
+              onSummary?.(data || {})
+              break
+            case 'complete':
+              completePayload = data
+              onComplete?.(data || {})
+              break
+            case 'error':
+              onError?.(data || { message: 'Stream error' })
+              break
+            default:
+              break
+          }
+        },
+        { signal }
+      )
+    } catch (e) {
+      if (signal?.aborted) {
+        return completePayload
+      }
+      throw e
+    }
+
+    if (!sawSummary && !signal?.aborted) {
+      const err = new Error('Stream ended without a summary payload')
+      onError?.({ message: err.message })
+      throw err
+    }
+
+    return completePayload
+  },
+
   async testPersona({ persona, prompt }) {
     const response = await apiClient.post('/persona/respond', { persona, prompt })
     return response.data
   },
 
-  /**
-   * Health check
-   */
   async healthCheck() {
     const response = await apiClient.get('/health')
     return response.data

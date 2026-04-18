@@ -2,7 +2,7 @@ import { callClaudeSonnet } from '../utils/anthropic.js'
 import { getSociety } from './societyGenerator.js'
 import { getSimulationSummaryPrompt } from '../prompts/simulationSummary.js'
 
-function resolveSociety(society_id, society_snapshot) {
+export function resolveSociety(society_id, society_snapshot) {
   const fromStore = getSociety(society_id)
   if (fromStore) return fromStore
 
@@ -23,7 +23,7 @@ function resolveSociety(society_id, society_snapshot) {
   return null
 }
 
-function compactSocietyForPrompt(society) {
+export function compactSocietyForPrompt(society) {
   const nodes = (society.nodes || []).slice(0, 24).map((p) => ({
     id: p.id,
     name: p.display_name || p.name,
@@ -43,20 +43,26 @@ function compactSocietyForPrompt(society) {
   }
 }
 
-function mockSimulation(society, promptText) {
+export function mockSimulation(society, promptText) {
   const list = society.nodes || []
   const n = list.length
   const clip = (s, max) => (s || '').slice(0, max) + ((s || '').length > max ? '…' : '')
-  const quotes = list.slice(0, Math.min(5, Math.max(2, n || 2))).map((p, i) => ({
-    persona_id: p.id,
-    name: p.display_name || p.name || 'Persona',
-    archetype: p.archetype || 'Member',
-    quote:
-      i % 2 === 0
-        ? `I'd want more detail on "${clip(promptText, 36)}" before we move forward.`
-        : 'Could work for our segment — I would run it past stakeholders.',
-    sentiment: ['positive', 'neutral', 'negative'][i % 3],
-  }))
+  const quotes = list.slice(0, Math.min(5, Math.max(2, n || 2))).map((p, i) => {
+    const sentiment = ['positive', 'neutral', 'negative'][i % 3]
+    const sentiment_score = sentiment === 'positive' ? 0.5 : sentiment === 'negative' ? -0.45 : 0.05
+    return {
+      persona_id: p.id,
+      name: p.display_name || p.name || 'Persona',
+      archetype: p.archetype || 'Member',
+      quote:
+        i % 2 === 0
+          ? `I'd want more detail on "${clip(promptText, 36)}" before we move forward.`
+          : 'Could work for our segment — I would run it past stakeholders.',
+      sentiment,
+      sentiment_score,
+      confidence: 0.55,
+    }
+  })
 
   const pos = Math.max(1, Math.floor(n * 0.38) || 1)
   const neg = Math.max(0, Math.floor(n * 0.22))
@@ -78,7 +84,7 @@ function mockSimulation(society, promptText) {
   }
 }
 
-function normalizeSimulation(raw, society) {
+export function normalizeSimulation(raw, society) {
   const nodes = society.nodes || []
   const validIds = new Set(nodes.map((p) => p.id).filter(Boolean))
 
@@ -92,15 +98,36 @@ function normalizeSimulation(raw, society) {
       ? raw.narrative.trim()
       : 'The network shows a spread of reactions typical for this audience mix.'
 
+  const sentimentToScore = (sent) => {
+    if (sent === 'positive') return 0.65
+    if (sent === 'negative') return -0.65
+    return 0
+  }
+
   const quotesIn = Array.isArray(raw?.quotes) ? raw.quotes : []
   const quotes = quotesIn
-    .map((q) => ({
-      persona_id: validIds.has(q?.persona_id) ? q.persona_id : undefined,
-      name: typeof q?.name === 'string' && q.name.trim() ? q.name.trim() : 'Persona',
-      archetype: typeof q?.archetype === 'string' ? q.archetype : '',
-      quote: typeof q?.quote === 'string' && q.quote.trim() ? q.quote.trim() : '—',
-      sentiment: ['positive', 'negative', 'neutral'].includes(q?.sentiment) ? q.sentiment : 'neutral',
-    }))
+    .map((q) => {
+      const sentiment = ['positive', 'negative', 'neutral'].includes(q?.sentiment) ? q.sentiment : 'neutral'
+      let sentiment_score = Number.isFinite(q?.sentiment_score) ? q.sentiment_score : null
+      if (sentiment_score == null) sentiment_score = sentimentToScore(sentiment)
+      sentiment_score = Math.min(1, Math.max(-1, sentiment_score))
+      let confidence =
+        typeof q?.confidence === 'number' && Number.isFinite(q.confidence)
+          ? Math.min(1, Math.max(0, q.confidence))
+          : null
+      if (confidence == null && sentiment_score != null) {
+        confidence = Math.min(1, 0.35 + Math.abs(sentiment_score) * 0.55)
+      }
+      return {
+        persona_id: validIds.has(q?.persona_id) ? q.persona_id : undefined,
+        name: typeof q?.name === 'string' && q.name.trim() ? q.name.trim() : 'Persona',
+        archetype: typeof q?.archetype === 'string' ? q.archetype : '',
+        quote: typeof q?.quote === 'string' && q.quote.trim() ? q.quote.trim() : '—',
+        sentiment,
+        sentiment_score,
+        confidence,
+      }
+    })
     .slice(0, 10)
 
   const m = raw?.metrics && typeof raw.metrics === 'object' ? raw.metrics : {}

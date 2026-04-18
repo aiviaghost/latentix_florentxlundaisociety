@@ -88,3 +88,41 @@ export async function callClaudeSonnet(prompt) {
     temperature: 1.0,
   })
 }
+
+const SONNET_STREAM_DEFAULTS = {
+  model: 'claude-sonnet-4-6',
+  maxTokens: 4000,
+  temperature: 1.0,
+}
+
+/**
+ * Stream assistant text from Claude Sonnet. Invokes onTextDelta with incremental text chunks.
+ * Resolves with the full concatenated assistant text when the stream completes.
+ *
+ * @param {{ prompt: string, onTextDelta?: (chunk: string) => void, signal?: AbortSignal }} opts
+ * @returns {Promise<string>}
+ */
+export async function streamClaudeSonnetText({ prompt, onTextDelta, signal } = {}) {
+  const anthropic = getAnthropicClient()
+
+  const stream = anthropic.messages.stream(
+    {
+      model: SONNET_STREAM_DEFAULTS.model,
+      max_tokens: SONNET_STREAM_DEFAULTS.maxTokens,
+      temperature: SONNET_STREAM_DEFAULTS.temperature,
+      messages: [{ role: 'user', content: prompt }],
+    },
+    { signal }
+  )
+
+  return new Promise((resolve, reject) => {
+    stream.on('text', (delta) => {
+      if (delta && onTextDelta) onTextDelta(delta)
+    })
+    stream.on('error', (err) => reject(err))
+    stream
+      .finalText()
+      .then((text) => resolve(text || ''))
+      .catch(reject)
+  })
+}

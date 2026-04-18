@@ -14,14 +14,14 @@ function formatSearchError(error) {
   return typeof msg === 'string' ? msg : 'Search failed.'
 }
 
-export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
+export default function SocietyBuilderView({ onSearch, onBeginSimulation }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
   const [audienceData, setAudienceData] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
   const [searchError, setSearchError] = useState('')
 
-  const { profiles, personas, graphState, isComplete, reset } = usePipelineUpdates(
+  const { profiles, personas, graphState, isComplete, reset, applyUpdate } = usePipelineUpdates(
     societyId,
     !!societyId,
     { query, nodes: audienceData?.nodes, links: audienceData?.links }
@@ -31,10 +31,11 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
     setQuery(searchQuery)
     setSearchError('')
     setShowSearch(false)
-    setSocietyId('loading') // show streamWaiting while API runs
+    setSocietyId('loading')
 
     try {
-      const result = await onSearch(searchQuery)
+      const pipelineLive = import.meta.env.VITE_PIPELINE_LIVE === 'true'
+      const result = await onSearch(searchQuery, pipelineLive ? applyUpdate : undefined)
 
       if (result?.society_id) {
         setAudienceData(result)
@@ -62,20 +63,21 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
   }
 
   const handleIdeaSubmit = useCallback(
-    async ({ ideaPrompt }) => {
-      if (!onSimulationRequest || !societyId || !graphState?.nodes?.length) {
-        throw new Error('Simulation is not available.')
+    ({ ideaPrompt }) => {
+      if (!onBeginSimulation || !societyId || !graphState?.nodes?.length) {
+        return
       }
-      await onSimulationRequest({
+      onBeginSimulation({
         societyId,
         ideaPrompt,
+        audienceQuery: query,
         societySnapshot: {
           nodes: graphState.nodes,
           links: graphState.links || [],
         },
       })
     },
-    [onSimulationRequest, societyId, graphState]
+    [onBeginSimulation, societyId, graphState, query]
   )
 
   const totalNodes = profiles.length + personas.length
@@ -92,7 +94,7 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
             <div>
               <h1 className="text-2xl font-bold">Society Builder</h1>
               <p className="text-sm text-muted-foreground">
-                Audience description → Profile index → Pre-built personas → Graph → 3D network
+                Audience description → Profile index → Pre-built personas → Graph → simulation
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -177,7 +179,7 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
                     </div>
                     <CardDescription>
                       {personas.length} personas are linked in the graph. Enter your idea in the bar below to run a
-                      simulation and open the 3D view.
+                      simulation and explore reactions on the network.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
@@ -215,7 +217,7 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
             )}
 
             {showFloatingComposer && (
-              <FloatingIdeaComposer onSubmit={handleIdeaSubmit} disabled={!onSimulationRequest} />
+              <FloatingIdeaComposer onSubmit={handleIdeaSubmit} disabled={!onBeginSimulation} />
             )}
           </div>
         )}

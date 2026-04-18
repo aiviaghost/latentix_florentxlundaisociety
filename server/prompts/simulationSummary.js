@@ -25,7 +25,9 @@ Return exactly one JSON object with this shape (no other text):
       "name": "<display name>",
       "archetype": "<short>",
       "quote": "<one sentence in voice of that persona>",
-      "sentiment": "positive" | "negative" | "neutral"
+      "sentiment": "positive" | "negative" | "neutral",
+      "sentiment_score": <optional float -1.0 to 1.0>,
+      "confidence": <optional float 0-1, how sure the persona voice is for this quote>
     }
   ],
   "metrics": {

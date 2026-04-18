@@ -16,7 +16,7 @@ const router = express.Router()
  * }
  *
  * Response: { society_id, simulation: { headline, narrative, quotes, metrics }, graph }
- * 3D playback frames are generated on the client, not in `simulation`.
+ * The main UI uses **POST /api/simulate/personas-stream** for incremental persona reactions; this route is a single-shot summary fallback.
  */
 router.post('/', async (req, res, next) => {
   try {
