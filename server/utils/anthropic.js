@@ -28,7 +28,7 @@ export async function callClaudeJSON(prompt, options = {}) {
   const anthropic = getAnthropicClient()
 
   const {
-    model = 'claude-3-5-sonnet-20241022',
+    model = 'claude-sonnet-4-6',
     maxTokens = 4000,
     temperature = 1.0,
   } = options
@@ -72,7 +72,7 @@ export async function callClaudeJSON(prompt, options = {}) {
  */
 export async function callClaudeHaiku(prompt) {
   return callClaudeJSON(prompt, {
-    model: 'claude-3-5-haiku-20241022',
+    model: 'claude-haiku-4-5-20251001',
     maxTokens: 4000,
     temperature: 1.0,
   })
@@ -83,7 +83,7 @@ export async function callClaudeHaiku(prompt) {
  */
 export async function callClaudeSonnet(prompt) {
   return callClaudeJSON(prompt, {
-    model: 'claude-3-5-sonnet-20241022',
+    model: 'claude-sonnet-4-6',
     maxTokens: 4000,
     temperature: 1.0,
   })

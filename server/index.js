@@ -3,9 +3,10 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import societyRouter from './routes/society.js'
 import simulateRouter from './routes/simulate.js'
+import personaRouter from './routes/persona.js'
 
 // Load environment variables
-dotenv.config({ path: '../.env' })
+dotenv.config({ path: '../.env', override: true })
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -29,6 +30,7 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/society', societyRouter)
 app.use('/api/simulate', simulateRouter)
+app.use('/api/persona', personaRouter)
 
 // Error handling
 app.use((err, req, res, next) => {
