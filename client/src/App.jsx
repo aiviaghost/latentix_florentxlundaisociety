@@ -35,8 +35,8 @@ function App() {
   // Stores the full society returned by generateAudience for use in handleSimulationRequest
   const societyRef = useRef(null)
 
-  const handleSearch = useCallback(async (query, onEvent) => {
-    const society = await api.generateAudience(query, undefined, onEvent)
+  const handleSearch = useCallback(async (query, personaCount, onEvent) => {
+    const society = await api.generateAudience(query, personaCount, onEvent)
     societyRef.current = society
     return society
   }, [])

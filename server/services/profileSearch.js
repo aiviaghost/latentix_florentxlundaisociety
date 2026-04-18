@@ -39,10 +39,15 @@ async function embedQuery(query) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('GEMINI_API_KEY not set')
 
-  const genAI = new GoogleGenerativeAI(apiKey)
-  const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
-  const result = await model.embedContent(query)
-  return result.embedding.values
+  try {
+    const genAI = new GoogleGenerativeAI(apiKey)
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-001' })
+    const result = await model.embedContent(query)
+    return result.embedding.values
+  } catch (error) {
+    console.error(`[profileSearch] Gemini embed failed: status=${error.status ?? 'n/a'} message="${error.message}"`)
+    throw error
+  }
 }
 
 /**

@@ -22,7 +22,7 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
 
   const { profiles, personas, graphState, isComplete, applyUpdate, reset } = usePipelineUpdates()
 
-  const handleSearch = async (searchQuery) => {
+  const handleSearch = async (searchQuery, personaCount) => {
     reset()
     setQuery(searchQuery)
     setSearchError('')
@@ -30,7 +30,7 @@ export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
     setSocietyId('loading')
 
     try {
-      const result = await onSearch(searchQuery, applyUpdate)
+      const result = await onSearch(searchQuery, personaCount, applyUpdate)
 
       if (result?.society_id) {
         setSocietyId(result.society_id)

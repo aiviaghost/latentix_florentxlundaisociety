@@ -4,13 +4,20 @@ import { Textarea } from './ui/textarea'
 import { Button } from './ui/button'
 import { Search, Loader2, Sparkles } from 'lucide-react'
 
+const AUDIENCE_SIZES = [
+  { label: 'Small', value: 10 },
+  { label: 'Medium', value: 50 },
+  { label: 'Large', value: 100 },
+]
+
 export default function SearchInput({ onSearch, loading, error }) {
   const [query, setQuery] = useState('')
+  const [audienceSize, setAudienceSize] = useState(50)
 
   const handleSubmit = (e) => {
     e.preventDefault()
     if (query.trim()) {
-      onSearch(query.trim())
+      onSearch(query.trim(), audienceSize)
     }
   }
 
@@ -56,6 +63,28 @@ export default function SearchInput({ onSearch, loading, error }) {
                   Matches index + pre-built personas
                 </span>
               )}
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium">Audience size</label>
+            <div className="flex gap-2">
+              {AUDIENCE_SIZES.map(({ label, value }) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setAudienceSize(value)}
+                  disabled={loading}
+                  className={`flex-1 py-2 rounded-md text-sm font-medium border transition-colors ${
+                    audienceSize === value
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-muted/40 text-muted-foreground border-border hover:bg-muted'
+                  }`}
+                >
+                  {label}
+                  <span className="ml-1 opacity-60 text-xs">({value})</span>
+                </button>
+              ))}
             </div>
           </div>
 

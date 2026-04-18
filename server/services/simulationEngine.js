@@ -161,7 +161,7 @@ export async function runSimulation(config) {
       throw new Error('No quotes in model response')
     }
   } catch (err) {
-    console.warn('Simulation LLM or parse failed, using mock:', err?.message || err)
+    console.error(`[simulationEngine] LLM call failed, falling back to mock: ${err?.message}`, err?.error ?? '')
     simulation = normalizeSimulation(mockSimulation(society, promptText), society)
   }
 
