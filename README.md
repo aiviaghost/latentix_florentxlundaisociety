@@ -80,7 +80,7 @@ Edit **`.env`** at the repo root (the server loads `../.env` relative to `server
 | `PORT` | No (default `3001`) | API port |
 | `CLIENT_URL` | No | CORS origin (default `http://localhost:5173`) |
 | `VITE_PIPELINE_LIVE` | No | When `true`, builder applies society search SSE live |
-| `GEMINI_API_KEY` | No | If you use Google paths in your deployment |
+| `GEMINI_API_KEY` | Yes | For embedding generation |
 | `VITE_API_URL` | No | Override API base (default `/api` via Vite proxy) |
 
 ### 3. Development
