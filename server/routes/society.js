@@ -1,53 +1,47 @@
 import express from 'express'
-import { generateSociety } from '../services/societyGenerator.js'
+import { generateAudience, getSociety } from '../services/societyGenerator.js'
 
 const router = express.Router()
 
 /**
- * POST /api/society/generate
+ * POST /api/society/search
  *
- * Generate a society of AI personas
+ * Generate an audience from a natural-language description using cached profiles.
  *
- * Body:
- * {
- *   mode: 'describe' | 'linkedin',
- *   description?: string,
- *   linkedin_urls?: string[],
- *   persona_count?: number,
- *   supplement_count?: number
- * }
+ * Body: { query: string, persona_count?: number }
  */
-router.post('/generate', async (req, res, next) => {
+router.post('/search', async (req, res, next) => {
   try {
-    const { mode, description, linkedin_urls, persona_count, supplement_count } = req.body
+    const { query, persona_count } = req.body
 
-    // Validation
-    if (!mode || !['describe', 'linkedin', 'cached'].includes(mode)) {
-      return res.status(400).json({ error: 'Invalid mode. Must be "describe", "linkedin", or "cached"' })
+    if (!query || typeof query !== 'string' || !query.trim()) {
+      return res.status(400).json({ error: 'query is required' })
     }
 
-    if ((mode === 'describe' || mode === 'cached') && !description) {
-      return res.status(400).json({ error: 'Description required for this mode' })
-    }
+    console.log(`Generating audience for query: "${query}"`)
 
-    if (mode === 'linkedin' && (!linkedin_urls || linkedin_urls.length === 0)) {
-      return res.status(400).json({ error: 'LinkedIn URLs required for linkedin mode' })
-    }
-
-    console.log(`Generating society: mode=${mode}, persona_count=${persona_count || 30}`)
-
-    const society = await generateSociety({
-      mode,
-      description,
-      linkedin_urls,
+    const society = await generateAudience({
+      description: query,
       persona_count: persona_count || 30,
-      supplement_count,
     })
 
     res.json(society)
   } catch (error) {
     next(error)
   }
+})
+
+/**
+ * GET /api/society/:societyId/status
+ *
+ * Returns a previously generated society (used by the live polling fallback).
+ */
+router.get('/:societyId/status', (req, res) => {
+  const society = getSociety(req.params.societyId)
+  if (!society) {
+    return res.status(404).json({ error: 'Society not found' })
+  }
+  res.json({ ...society, status: 'complete' })
 })
 
 export default router

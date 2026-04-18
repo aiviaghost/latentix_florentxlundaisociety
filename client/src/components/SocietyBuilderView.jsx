@@ -14,38 +14,40 @@ function formatSearchError(error) {
   return typeof msg === 'string' ? msg : 'Search failed.'
 }
 
-export default function SocietyBuilderView({ onSearch, loading, pipelineLive, onSimulationRequest }) {
+export default function SocietyBuilderView({ onSearch, onSimulationRequest }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
+  const [audienceData, setAudienceData] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
   const [searchError, setSearchError] = useState('')
 
   const { profiles, personas, graphState, isComplete, reset } = usePipelineUpdates(
     societyId,
     !!societyId,
-    { query }
+    { query, nodes: audienceData?.nodes, links: audienceData?.links }
   )
 
   const handleSearch = async (searchQuery) => {
     setQuery(searchQuery)
     setSearchError('')
     setShowSearch(false)
+    setSocietyId('loading') // show streamWaiting while API runs
 
     try {
       const result = await onSearch(searchQuery)
 
       if (result?.society_id) {
+        setAudienceData(result)
         setSocietyId(result.society_id)
-      } else if (pipelineLive) {
-        setSearchError('Server did not return a society_id. Is POST /api/society/search implemented?')
-        setShowSearch(true)
       } else {
-        setSearchError('Unexpected response.')
+        setSearchError('Unexpected response from server.')
+        setSocietyId(null)
         setShowSearch(true)
       }
     } catch (error) {
       console.error('Search failed:', error)
       setSearchError(formatSearchError(error))
+      setSocietyId(null)
       setShowSearch(true)
     }
   }
@@ -53,6 +55,7 @@ export default function SocietyBuilderView({ onSearch, loading, pipelineLive, on
   const handleReset = () => {
     setQuery('')
     setSocietyId(null)
+    setAudienceData(null)
     setShowSearch(true)
     setSearchError('')
     reset()
@@ -119,7 +122,7 @@ export default function SocietyBuilderView({ onSearch, loading, pipelineLive, on
       <div className="flex-1 overflow-hidden relative">
         {showSearch ? (
           <div className="h-full w-full flex items-center justify-center p-6 bg-gradient-to-br from-background to-muted/20">
-            <SearchInput onSearch={handleSearch} loading={loading} error={searchError} />
+            <SearchInput onSearch={handleSearch} error={searchError} />
           </div>
         ) : (
           <div className="h-full w-full relative">

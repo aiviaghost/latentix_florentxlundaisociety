@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 /**
  * Society Builder streaming: when `VITE_PIPELINE_LIVE` is not `"true"`, the UI
  * runs a client-side simulated pipeline (no POST /society/search required).
- * Set `VITE_PIPELINE_LIVE=true` to call `searchLinkedIn` and WebSocket/polling instead.
+ * Set `VITE_PIPELINE_LIVE=true` to call `generateAudience` and WebSocket/polling instead.
  */
 
 const apiClient = axios.create({
@@ -25,55 +25,26 @@ const apiClient = axios.create({
 
 const api = {
   /**
-   * Search LinkedIn and generate society (NEW SIMPLIFIED API)
+   * Generate an audience from a natural-language description.
    *
    * @param {string} query - Natural language description of target audience
+   * @param {number} [persona_count]
    *
-   * @returns {Promise<Object>} Response format:
-   * {
-   *   society_id: string,
-   *   status: 'processing' | 'complete',
-   *   message: string
-   * }
+   * @returns {Promise<Object>} { society_id, status, nodes, links, metadata }
    */
-  async searchLinkedIn(query) {
-    const response = await apiClient.post('/society/search', { query })
+  async generateAudience(query, persona_count) {
+    const response = await apiClient.post('/society/search', { query, persona_count })
     return response.data
   },
 
   /**
-   * Get society status (for polling, WebSocket is preferred)
+   * Get a previously generated society (used by live polling fallback).
    *
-   * @param {string} societyId - ID of the society
-   *
-   * @returns {Promise<Object>} Response format:
-   * {
-   *   society_id: string,
-   *   status: 'processing' | 'complete',
-   *   profiles: Array<Profile>,
-   *   personas: Array<Persona>,
-   *   graphState: Object
-   * }
+   * @param {string} societyId
+   * @returns {Promise<Object>}
    */
   async getSocietyStatus(societyId) {
     const response = await apiClient.get(`/society/${societyId}/status`)
-    return response.data
-  },
-
-  /**
-   * LEGACY: Generate a society of AI personas (DEPRECATED - use searchLinkedIn)
-   *
-   * @param {Object} config
-   * @param {string} config.mode - 'describe' | 'linkedin'
-   * @param {string} [config.description] - For 'describe' mode
-   * @param {Array<string>} [config.linkedin_urls] - For 'linkedin' mode
-   * @param {number} [config.persona_count] - Total personas to generate
-   * @param {number} [config.supplement_count] - For 'linkedin' mode, how many to generate
-   *
-   * @returns {Promise<Object>}
-   */
-  async generateSociety(config) {
-    const response = await apiClient.post('/society/generate', config)
     return response.data
   },
 

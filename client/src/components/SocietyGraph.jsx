@@ -16,34 +16,11 @@ function linkMatchesActive(link, activeLinks) {
   return activeLinks.includes(k1) || activeLinks.includes(k2)
 }
 
-/** Rich mock when graphData is null: hub + ring + cross-links for visible structure */
-const MOCK_GRAPH = {
-  nodes: [
-    { id: 'hub', name: 'Jordan R.', archetype: 'Connector', val: 14, color: '#a78bfa' },
-    { id: 'p_1', name: 'Maria C.', archetype: 'Product Leader', val: 8, color: '#8b5cf6' },
-    { id: 'p_2', name: 'John D.', archetype: 'Tech Founder', val: 10, color: '#3b82f6' },
-    { id: 'p_3', name: 'Sarah K.', archetype: 'Investor', val: 12, color: '#ec4899' },
-    { id: 'p_4', name: 'Alex P.', archetype: 'Developer', val: 6, color: '#10b981' },
-    { id: 'p_5', name: 'Emma L.', archetype: 'Designer', val: 7, color: '#f59e0b' },
-  ],
-  links: [
-    { source: 'hub', target: 'p_1', type: 'collab', strength: 0.85 },
-    { source: 'hub', target: 'p_2', type: 'collab', strength: 0.9 },
-    { source: 'hub', target: 'p_3', type: 'collab', strength: 0.88 },
-    { source: 'hub', target: 'p_4', type: 'advisor', strength: 0.55 },
-    { source: 'hub', target: 'p_5', type: 'advisor', strength: 0.6 },
-    { source: 'p_1', target: 'p_2', type: 'peer', strength: 0.5 },
-    { source: 'p_2', target: 'p_3', type: 'peer', strength: 0.55 },
-    { source: 'p_3', target: 'p_5', type: 'peer', strength: 0.5 },
-    { source: 'p_4', target: 'p_5', type: 'peer', strength: 0.45 },
-    { source: 'p_1', target: 'p_4', type: 'weak', strength: 0.35 },
-  ],
-}
-
 function SocietyGraph({ graphData, simulationState, onNodeClick }) {
   const graphRef = useRef()
   const data = useMemo(() => {
-    const raw = graphData?.nodes?.length ? graphData : MOCK_GRAPH
+    if (!graphData?.nodes?.length) return { nodes: [], links: [] }
+    const raw = graphData
     const nodes = (raw.nodes || []).map((n) => ({
       ...n,
       name: n.name || n.display_name || n.id,

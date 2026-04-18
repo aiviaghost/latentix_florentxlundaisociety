@@ -24,7 +24,6 @@ app.get('/api/health', (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     anthropic_configured: !!process.env.ANTHROPIC_API_KEY,
-    proxycurl_configured: !!process.env.PROXYCURL_API_KEY,
   })
 })
 
@@ -50,7 +49,4 @@ app.listen(PORT, () => {
     console.warn('⚠️  WARNING: ANTHROPIC_API_KEY not set in .env')
   }
 
-  if (!process.env.PROXYCURL_API_KEY) {
-    console.warn('ℹ️  INFO: PROXYCURL_API_KEY not set (LinkedIn import will use fallback)')
-  }
 })
