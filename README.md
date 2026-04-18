@@ -1,402 +1,154 @@
 # Pollen
 
-> **Hackathon Project**: Generate AI societies and simulate how startup ideas spread through social networks
+Synthetic audience lab: describe a target market, watch a society of AI personas form as a 3D network, then stress-test a pitch or product idea and read how the group reacts—in real time and in aggregate.
+---
 
-Inspired by [Artificial Societies (YC W25)](https://www.artificialsocieties.com/), Pollen builds dynamic AI personas from real-world data (LinkedIn profiles or text descriptions), visualizes them as an immersive 3D social network, and simulates how your startup idea propagates through that society — showing you exactly who adopts, who objects, and why.
+## Problem statement
 
-## 🎯 The Product
+Teams and founders need fast, cheap feedback on how an idea might land with a *specific* audience—not a single generic LLM reply, but many plausible viewpoints that reflect different roles, incentives, and skepticism. Manual panels and surveys are slow; a single chatbot answer hides disagreement and network effects. There is no lightweight way to go from “European B2B SaaS buyers” to dozens of consistent personas *and* an interactive read on adoption, objections, and quotes.
 
-### Two-Phase Demo Flow
+---
 
-**Phase 1: Build Your Society (30 seconds)**
-- Describe your target audience OR paste LinkedIn URLs
-- Watch a 3D galaxy of AI personas materialize
-- Each node is a unique persona with behavioral traits
+## Solution
 
-**Phase 2: Test Your Idea (30 seconds)**
-- Paste your startup pitch
-- See personas react in real time in the console, with the graph tinting by sentiment
-- Click nodes to focus a persona; final headline, narrative, and metrics arrive with the stream summary
+**Pollen** is a two-phase web app:
 
-## 🛠️ Tech Stack
+1. **Build** — You describe an audience in natural language (and optional size). The backend matches stored profiles, synthesizes personas, and assembles a graph. The UI shows a **builder pipeline** (React Flow) and, when the graph is ready, a **3D force-directed network** of personas.
+
+2. **Simulate** — You submit a pitch or scenario. The backend streams **per-persona** reactions (sentiment, reaction label, quote); the **3D graph** tints nodes by sentiment, and the **simulation console** shows live rows plus a final **summary** (headline, narrative, metrics, quotes).
+
+Inspired by the idea of [Artificial Societies](https://www.artificialsocieties.com/); this repo is a hackathon-scope implementation focused on demo quality and a clear API surface.
+
+---
+
+## Technical approach
+
+### Architecture
+
+- **Monorepo** (npm workspaces): `client/` (Vite + React), `server/` (Express), root scripts to run both.
+- **Society build** — `POST /api/society/search` returns **Server-Sent Events (SSE)**: profile discovery, persona synthesis steps, graph progress, then `graph_complete` with `nodes` / `links`. The client [`usePipelineUpdates`](client/src/hooks/usePipelineUpdates.js) maps events into pipeline + graph state.
+- **Simulation** — Primary path: **`POST /api/simulate/personas-stream`** (SSE): persona chunks with bounded concurrency, then a `summary` payload. Fallback: **`POST /api/simulate`** for a one-shot result. Conversation context for follow-up rounds is built in [`simulationConversation.js`](client/src/lib/simulationConversation.js).
 
 ### Frontend
-- **React 18** + **Vite** (fast dev environment)
-- **Tailwind CSS** (styling)
-- **react-force-graph-3d** (3D network visualization)
-- **Three.js** (custom node rendering)
+
+- **React 18**, **Vite**, **Tailwind CSS**, **shadcn-style UI** primitives.
+- **react-force-graph-3d** (+ Three.js) for the society graph during simulation; node color driven by streamed sentiment.
+- **React Flow** for the builder “pipeline” diagram (query → index → profiles → personas → graph → output).
+- **Axios / `fetch`** in [`client/src/api/client.js`](client/src/api/client.js) for HTTP + SSE consumption ([`sseReader.js`](client/src/lib/sseReader.js)).
 
 ### Backend
-- **Node.js** + **Express** (API server)
-- **Anthropic Claude** (Haiku for persona synthesis, Sonnet for simulation)
-- **Proxycurl API** (optional: LinkedIn data fetching)
 
-## 🚀 Quick Start
+- **Node.js**, **Express**, **CORS** scoped to `CLIENT_URL`.
+- **Anthropic Claude** via [`server/utils/anthropic.js`](server/utils/anthropic.js) for persona synthesis and simulation steps; prompts under [`server/prompts/`](server/prompts/).
+- **Embedding-assisted profile search** (see [`server/services/profileSearch.js`](server/services/profileSearch.js) and optional precomputed embeddings in `server/data/`).
+- Optional **Gemini** key in `.env` if your deployment uses Google models anywhere in the stack—see `.env.example`.
+
+### Deep dive
+
+For event types, route list, and client/server contract details, see **[`docs/SOCIETY_BUILDER_SIMULATION_FLOW.md`](docs/SOCIETY_BUILDER_SIMULATION_FLOW.md)**.
+
+---
+
+## How to run the project
 
 ### Prerequisites
-- Node.js 18+ and npm
-- Anthropic API key ([get one here](https://console.anthropic.com/))
-- (Optional) Proxycurl API key for LinkedIn import ([free tier here](https://nubela.co/proxycurl/))
 
-### 1. Install Dependencies
+- **Node.js 18+** and **npm**
+- **Anthropic API key** ([Anthropic Console](https://console.anthropic.com/))
+
+### 1. Install
+
+From the repository root:
 
 ```bash
 npm install
 ```
 
-This installs dependencies for root, client, and server simultaneously (monorepo setup).
+Installs root, `client`, and `server` workspaces.
 
-### 2. Configure Environment
+### 2. Environment
 
-Copy the example env file:
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and add your API keys:
-```bash
-ANTHROPIC_API_KEY=sk-ant-xxxxx
-PROXYCURL_API_KEY=your_key_here  # Optional
-PORT=3001
-CLIENT_URL=http://localhost:5173
-```
+Edit **`.env`** at the repo root (the server loads `../.env` relative to `server/`):
 
-### 3. Run Development Servers
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `ANTHROPIC_API_KEY` | **Yes** | Persona synthesis and simulation |
+| `PORT` | No (default `3001`) | API port |
+| `CLIENT_URL` | No | CORS origin (default `http://localhost:5173`) |
+| `VITE_PIPELINE_LIVE` | No | When `true`, builder applies society search SSE live |
+| `GEMINI_API_KEY` | No | If you use Google paths in your deployment |
+| `VITE_API_URL` | No | Override API base (default `/api` via Vite proxy) |
 
-Start both frontend and backend:
+### 3. Development
+
 ```bash
 npm run dev
 ```
 
-This runs:
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:3001
+- **Frontend:** [http://localhost:5173](http://localhost:5173)  
+- **Backend:** [http://localhost:3001](http://localhost:3001)  
+- **Health:** [http://localhost:3001/api/health](http://localhost:3001/api/health)
 
-### 4. Open the App
+### 4. Production build (client)
 
-Navigate to http://localhost:5173 and start building societies!
-
-## 📂 Project Structure
-
-```
-pollen/
-├── client/                    # Frontend (React + Vite)
-│   ├── src/
-│   │   ├── components/
-│   │   │   ├── SocietyGraph.jsx      # 3D force graph (Person A)
-│   │   │   ├── CreatePanel.jsx       # Society creation UI (Person C)
-│   │   │   ├── SimulationPanel.jsx   # Simulation controls (Person C)
-│   │   │   ├── ResultsPanel.jsx      # Metrics display (Person C)
-│   │   │   ├── PersonaDetail.jsx     # Node detail popup (Person C)
-│   │   │   └── ActivityFeed.jsx      # Live activity log (Person C)
-│   │   ├── hooks/
-│   │   │   ├── useSociety.js         # Society state management
-│   │   │   └── useSimulation.js      # Simulation state management
-│   │   ├── api/
-│   │   │   └── client.js             # API contract (shared by all)
-│   │   └── App.jsx                   # Main app layout
-│   └── package.json
-│
-├── server/                    # Backend (Node.js + Express)
-│   ├── routes/
-│   │   ├── society.js                # POST /api/society/generate
-│   │   └── simulate.js               # POST /api/simulate
-│   ├── services/
-│   │   ├── societyGenerator.js       # Main society generation (Person B)
-│   │   ├── personaSynthesis.js       # LLM persona synthesis (Person D)
-│   │   ├── graphAssembly.js          # Network topology builder (Person B)
-│   │   ├── simulationEngine.js       # Multi-agent simulation (Person B)
-│   │   └── linkedinFetcher.js        # Proxycurl integration (Person D)
-│   ├── prompts/
-│   │   ├── personaSynthesis.js       # LLM prompts (Person D)
-│   │   └── simulationStep.js         # Simulation prompts (Person D)
-│   ├── utils/
-│   │   └── anthropic.js              # Claude API client
-│   ├── data/
-│   │   └── cachedProfiles.json       # Fallback LinkedIn data
-│   └── index.js                      # Express server entry
-│
-└── package.json                      # Root workspace config
-```
-
-## 👥 Team Roles & Parallelization
-
-The project is structured for **4 people** to work independently:
-
-### **Person A: 3D Graph Lead**
-**Focus**: `client/src/components/SocietyGraph.jsx`
-
-**Tasks**:
-- Custom THREE.js node rendering (spheres with glow effects)
-- Node color states during simulation (green/red/yellow)
-- Link particle system (information flow animation)
-- Camera animation (auto-follow during simulation)
-- Text sprites for persona names
-
-**Can start immediately with**: Mock data in `SocietyGraph.jsx`
-
----
-
-### **Person B: Backend Lead**
-**Focus**: `server/routes/*`, `server/services/simulationEngine.js`, `server/services/graphAssembly.js`
-
-**Tasks**:
-- API endpoints (`/api/society/generate`, `/api/simulate`)
-- Society generation pipeline
-- Simulation engine (multi-step propagation)
-- Graph assembly algorithm
-- Error handling and API optimization
-
-**Depends on**: Anthropic API key, Person D's prompts (can use placeholders initially)
-
----
-
-### **Person C: Frontend/UX Lead**
-**Focus**: `client/src/components/*` (except `SocietyGraph.jsx`)
-
-**Tasks**:
-- All UI panels (Create, Simulation, Results, PersonaDetail, ActivityFeed)
-- Layout and responsive design
-- Loading states and animations
-- Results visualization (bars, counters, quotes)
-- React hooks (`useSociety.js`, `useSimulation.js`)
-
-**Can start immediately with**: Mock API responses from `client/src/api/client.js`
-
----
-
-### **Person D: Data + Prompts Lead**
-**Focus**: `server/prompts/*`, `server/services/linkedinFetcher.js`, `server/services/personaSynthesis.js`
-
-**Tasks**:
-- Write all LLM prompts (society generation, persona synthesis, simulation)
-- Proxycurl API integration
-- LinkedIn persona transformation logic
-- Test and refine prompts until output quality is high
-- Create cached profile data
-
-**Can start immediately**: Write prompts in `server/prompts/` files
-
----
-
-## 🔌 API Documentation
-
-### POST `/api/society/generate`
-
-Generate a society of AI personas.
-
-**Request Body**:
-```json
-{
-  "mode": "describe",
-  "description": "50 European B2B SaaS founders, mixed early and growth stage",
-  "persona_count": 30
-}
-```
-
-OR for LinkedIn mode:
-```json
-{
-  "mode": "linkedin",
-  "linkedin_urls": [
-    "https://linkedin.com/in/username1",
-    "https://linkedin.com/in/username2"
-  ],
-  "persona_count": 30,
-  "supplement_count": 25
-}
-```
-
-**Response**:
-```json
-{
-  "society_id": "soc_abc123",
-  "nodes": [
-    {
-      "id": "p_1",
-      "name": "Maria C.",
-      "archetype": "Product Leader",
-      "val": 8,
-      "color": "#8b5cf6",
-      "traits": { ... },
-      ...
-    }
-  ],
-  "links": [
-    { "source": "p_1", "target": "p_2", "strength": 0.6 }
-  ],
-  "metadata": {
-    "total_personas": 30,
-    "real_profiles": 5,
-    "generated_profiles": 25
-  }
-}
-```
-
----
-
-### POST `/api/society/search`
-
-Builds a society from a natural-language audience description. Returns **`text/event-stream`**: each line is `data: { "type": "...", ... }\n\n` (see `docs/SOCIETY_BUILDER_SIMULATION_FLOW.md`). The client buffers the stream and resolves with `{ society_id, nodes, links, metadata }`.
-
-### POST `/api/simulate/personas-stream`
-
-Streams **per-persona** reactions (Claude via `respondAsPersona`) with bounded concurrency, then a **`summary`** object (headline, narrative, quotes, metrics). The React app uses this as the primary simulation path.
-
-### POST `/api/simulate`
-
-Run a **single-shot** summary on a society (fallback if the persona stream fails).
-
-**Request Body**:
-```json
-{
-  "society_id": "soc_abc123",
-  "content": "An AI tool that generates financial reports from raw data. $49/month for startups.",
-  "seed_strategy": "auto"
-}
-```
-
-**Response**:
-```json
-{
-  "steps": [
-    {
-      "step": 1,
-      "reactions": [
-        {
-          "agent_id": "p_1",
-          "reaction": "positive",
-          "action": "share",
-          "sentiment_score": 0.8,
-          "quote": "Love the concept but need SOC 2.",
-          "would_share": true,
-          "influenced_by": null
-        }
-      ]
-    }
-  ],
-  "summary": {
-    "adoption_rate": 0.62,
-    "positive_count": 18,
-    "negative_count": 5,
-    "neutral_count": 7,
-    "top_quotes": [...]
-  }
-}
-```
-
----
-
-## 🧪 Testing the Full Flow
-
-1. **Generate a Society**:
-   ```bash
-   curl -X POST http://localhost:3001/api/society/generate \
-     -H "Content-Type: application/json" \
-     -d '{
-       "mode": "describe",
-       "description": "Tech founders and product leaders in SaaS",
-       "persona_count": 20
-     }'
-   ```
-
-2. **Run a Simulation** (use the `society_id` from step 1):
-   ```bash
-   curl -X POST http://localhost:3001/api/simulate \
-     -H "Content-Type: application/json" \
-     -d '{
-       "society_id": "soc_xyz",
-       "content": "A developer tool for API testing",
-       "seed_strategy": "auto"
-     }'
-   ```
-
-## 🎨 Visual Design Notes
-
-- **Color Theme**: Dark mode (`bg-slate-950`) with gradient accents (purple to blue)
-- **3D Background**: Deep space black (`#050510`)
-- **Active States**: Glow effects using `emissive` in Three.js
-- **Particles**: Blue particles (`#60a5fa`) flowing along edges during simulation
-- **Glass Morphism**: Panels use backdrop blur with translucent backgrounds
-
-## 📋 Implementation Checklist
-
-### Must Have (Core Demo)
-- [x] Society generation from description
-- [x] 3D force graph rendering
-- [x] Simulation with step-by-step results
-- [ ] Particle animation on edges
-- [ ] Node color changes during simulation
-- [ ] Results panel with adoption metrics
-
-### Nice to Have (If Time)
-- [ ] LinkedIn URL import
-- [ ] Click node for detail panel
-- [ ] Camera auto-zoom to active nodes
-- [ ] Activity feed with live reactions
-- [ ] "Try another idea" flow
-
-### Do NOT Build
-- ❌ User authentication
-- ❌ Database persistence
-- ❌ WebSocket streaming
-- ❌ A/B testing features
-- ❌ File upload for pitch decks
-
-## 🔥 Tips for Success
-
-1. **Start with the API contract**: `client/src/api/client.js` defines everything. Frontend and backend can work independently once this is agreed upon.
-
-2. **Use mock data early**: Both frontend and backend have fallbacks. Don't wait for real data to start building.
-
-3. **Test the 3D graph first**: Person A should get a basic rotating galaxy working in the first hour. Visual wow factor is critical.
-
-4. **Prompt quality matters**: Person D should iterate on prompts with real Claude API calls before integrating. Use the [Anthropic Console](https://console.anthropic.com/workbench) to test prompts.
-
-5. **Parallel development**:
-   - Frontend can mock API responses
-   - Backend can return mock data initially
-   - Person A can work with hardcoded graph data
-   - Person D can test prompts independently
-
-6. **Merge often**: Since everyone works on different files, merge conflicts should be minimal. Push frequently.
-
-## 🐛 Troubleshooting
-
-### "Cannot find module" errors
 ```bash
-npm install
+npm run build --workspace=client
 ```
 
-### Frontend can't reach backend
-- Check that backend is running on port 3001
-- Check CORS settings in `server/index.js`
-- Verify Vite proxy config in `client/vite.config.js`
-
-### LLM returning invalid JSON
-- Check prompts in `server/prompts/`
-- Add better error handling in `server/utils/anthropic.js`
-- Use fallback mock data for demos
-
-### 3D graph not rendering
-- Check browser console for Three.js errors
-- Verify `react-force-graph-3d` is installed
-- Ensure graph data has valid `nodes` and `links` arrays
-
-## 📚 Resources
-
-- [Artificial Societies (inspiration)](https://www.artificialsocieties.com/)
-- [Anthropic Claude API Docs](https://docs.anthropic.com/)
-- [react-force-graph-3d Docs](https://github.com/vasturiano/react-force-graph)
-- [Three.js Docs](https://threejs.org/docs/)
-- [Proxycurl API Docs](https://nubela.co/proxycurl/docs)
-
-## 📝 License
-
-MIT (Hackathon project)
+Output in `client/dist/`. Serve static files and reverse-proxy `/api` to the Node server as needed.
 
 ---
 
-**Built for hackathon by a team of 4 in ~10 hours**
+## Project layout (abbreviated)
 
-Good luck! 🚀
+```
+├── client/                 # React + Vite SPA
+│   ├── src/
+│   │   ├── App.jsx
+│   │   ├── api/client.js
+│   │   ├── components/     # SocietyBuilderView, SimulationView, SocietyGraph, DynamicPipeline, …
+│   │   ├── hooks/
+│   │   └── lib/
+│   └── vite.config.js
+├── server/                 # Express API
+│   ├── index.js
+│   ├── routes/             # society, simulate, simulate/stream, simulate/personas-stream, persona
+│   ├── services/         # graphAssembly, personaSynthesis, simulationStreamEngine, …
+│   ├── prompts/
+│   └── data/
+├── docs/
+│   └── SOCIETY_BUILDER_SIMULATION_FLOW.md
+├── .env.example
+└── package.json            # workspaces: client, server
+```
+
+---
+
+## API surface (short)
+
+| Method | Path | Role |
+|--------|------|------|
+| POST | `/api/society/search` | SSE: build society from natural-language query |
+| POST | `/api/simulate/personas-stream` | SSE: stream persona reactions + summary |
+| POST | `/api/simulate` | JSON: one-shot simulation (fallback) |
+| GET | `/api/health` | Liveness + config sanity |
+
+Full shapes and stream record types: [`docs/SOCIETY_BUILDER_SIMULATION_FLOW.md`](docs/SOCIETY_BUILDER_SIMULATION_FLOW.md).
+
+---
+
+## Troubleshooting
+
+- **Blank UI / CORS** — Ensure `npm run dev` started the server and `CLIENT_URL` matches the Vite origin.
+- **No LLM output** — Confirm `ANTHROPIC_API_KEY` in `.env` at repo root; hit `/api/health`.
+- **3D graph empty** — Check browser console; ensure `graph_complete` delivered `nodes` (see network tab on `/api/society/search`).
+
+---
+
+## License
+
+MIT — hackathon / educational use.
