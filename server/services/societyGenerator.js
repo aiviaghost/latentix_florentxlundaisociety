@@ -1,7 +1,8 @@
 import { callClaudeHaiku } from '../utils/anthropic.js'
-import { synthesizePersonasFromDescription } from './personaSynthesis.js'
+import { synthesizePersonasFromDescription, synthesizePersonaFromLinkedIn } from './personaSynthesis.js'
 import { assembleGraph } from './graphAssembly.js'
 import { fetchLinkedInProfiles } from './linkedinFetcher.js'
+import { searchProfiles } from './profileSearch.js'
 
 // In-memory storage for societies (for the hackathon)
 const societies = new Map()
@@ -20,10 +21,14 @@ export async function generateSociety(config) {
 
   let personas = []
 
-  if (mode === 'describe') {
-    // Generate personas from description
-    console.log('Synthesizing personas from description...')
-    personas = await synthesizePersonasFromDescription(description, persona_count)
+  if (mode === 'describe' || mode === 'cached') {
+    // Semantic search over cached LinkedIn profiles, then synthesize personas
+    console.log('Searching cached profiles by semantic similarity...')
+    const matchedProfiles = await searchProfiles(description, persona_count)
+    console.log(`Found ${matchedProfiles.length} matching profiles, synthesizing personas...`)
+
+    const results = await Promise.all(matchedProfiles.map(synthesizePersonaFromLinkedIn))
+    personas = results.filter(Boolean)
   } else if (mode === 'linkedin') {
     // Fetch LinkedIn profiles and synthesize
     console.log('Fetching LinkedIn profiles...')

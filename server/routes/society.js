@@ -22,12 +22,12 @@ router.post('/generate', async (req, res, next) => {
     const { mode, description, linkedin_urls, persona_count, supplement_count } = req.body
 
     // Validation
-    if (!mode || !['describe', 'linkedin'].includes(mode)) {
-      return res.status(400).json({ error: 'Invalid mode. Must be "describe" or "linkedin"' })
+    if (!mode || !['describe', 'linkedin', 'cached'].includes(mode)) {
+      return res.status(400).json({ error: 'Invalid mode. Must be "describe", "linkedin", or "cached"' })
     }
 
-    if (mode === 'describe' && !description) {
-      return res.status(400).json({ error: 'Description required for describe mode' })
+    if ((mode === 'describe' || mode === 'cached') && !description) {
+      return res.status(400).json({ error: 'Description required for this mode' })
     }
 
     if (mode === 'linkedin' && (!linkedin_urls || linkedin_urls.length === 0)) {
