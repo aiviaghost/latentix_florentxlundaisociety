@@ -17,8 +17,9 @@ function loadData() {
   const embeddings = JSON.parse(readFileSync(join(DATA_DIR, 'profileEmbeddings.json'), 'utf-8'))
   cachedVectors = embeddings.vectors
 
-  if (cachedProfiles.length !== cachedVectors.length) {
-    throw new Error(`Profile/embedding count mismatch: ${cachedProfiles.length} vs ${cachedVectors.length}`)
+  if (cachedVectors.length < cachedProfiles.length) {
+    console.warn(`Partial embeddings: searching ${cachedVectors.length} of ${cachedProfiles.length} profiles`)
+    cachedProfiles = cachedProfiles.slice(0, cachedVectors.length)
   }
 
   console.log(`Loaded ${cachedProfiles.length} profiles and embeddings into memory`)
