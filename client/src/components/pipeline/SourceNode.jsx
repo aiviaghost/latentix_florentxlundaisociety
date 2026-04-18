@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Linkedin, FileText, Database } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { PIPELINE_CARD_SHELL } from '../../lib/pipelineCopy'
 
 const iconMap = {
   linkedin: Linkedin,
@@ -13,35 +14,39 @@ const iconMap = {
 export default function SourceNode({ data }) {
   const Icon = iconMap[data.sourceType] || FileText
   const statusColors = {
-    idle: 'bg-muted text-muted-foreground',
-    processing: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
-    complete: 'bg-green-500/20 text-green-400 border-green-500/50',
-    error: 'bg-red-500/20 text-red-400 border-red-500/50',
+    idle: 'bg-muted/50 border-border',
+    processing: 'bg-primary/10 border-primary/50',
+    complete: 'bg-green-500/10 border-green-500/50',
+    error: 'bg-red-500/10 border-red-500/50',
   }
 
   return (
     <>
-      <Card className={cn(
-        'w-64 transition-all',
-        statusColors[data.status]
-      )}>
+      <Card
+        className={cn(
+          PIPELINE_CARD_SHELL,
+          'transition-all',
+          statusColors[data.status] || statusColors.idle
+        )}
+      >
         <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Icon className="h-5 w-5" />
-              <CardTitle className="text-sm">{data.label}</CardTitle>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <Icon className="h-5 w-5 shrink-0 text-primary" />
+              <CardTitle className="text-sm truncate">{data.label}</CardTitle>
             </div>
             {data.status !== 'idle' && (
-              <Badge variant={data.status === 'complete' ? 'default' : 'secondary'} className="text-xs">
+              <Badge variant={data.status === 'complete' ? 'default' : 'secondary'} className="text-xs shrink-0">
                 {data.status}
               </Badge>
             )}
           </div>
         </CardHeader>
-        <CardContent className="space-y-2">
+        <CardContent className="space-y-2 pt-0">
           {data.count !== undefined && (
             <div className="text-xs text-muted-foreground">
-              {data.sourceType === 'linkedin' ? 'Profiles' : 'Items'}: <span className="font-mono font-semibold">{data.count}</span>
+              {data.sourceType === 'linkedin' ? 'Profiles' : 'Items'}:{' '}
+              <span className="font-mono font-semibold text-foreground">{data.count}</span>
             </div>
           )}
           {data.progress !== undefined && data.status === 'processing' && (
@@ -59,9 +64,7 @@ export default function SourceNode({ data }) {
             </div>
           )}
           {data.details && (
-            <div className="text-xs text-muted-foreground truncate">
-              {data.details}
-            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{data.details}</p>
           )}
         </CardContent>
       </Card>

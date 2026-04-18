@@ -1,8 +1,19 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useMemo } from 'react'
 import ForceGraph3D from 'react-force-graph-3d'
 import * as THREE from 'three'
 
-// MOCK DATA - Person A can replace with real data
+function linkEndpointId(nodeOrId) {
+  if (nodeOrId && typeof nodeOrId === 'object' && 'id' in nodeOrId) return nodeOrId.id
+  return nodeOrId
+}
+
+function linkKey(link) {
+  const s = linkEndpointId(link.source)
+  const t = linkEndpointId(link.target)
+  return `${s}-${t}`
+}
+
+// MOCK DATA when graphData is null
 const MOCK_GRAPH = {
   nodes: [
     { id: 'p_1', name: 'Maria C.', archetype: 'Product Leader', val: 8, color: '#8b5cf6' },
@@ -23,10 +34,20 @@ const MOCK_GRAPH = {
 function SocietyGraph({ graphData, simulationState, onNodeClick }) {
   const graphRef = useRef()
 
-  // Use mock data if no real data provided
-  const data = graphData || MOCK_GRAPH
+  const data = useMemo(() => {
+    const raw = graphData?.nodes?.length ? graphData : MOCK_GRAPH
+    const nodes = (raw.nodes || []).map((n) => ({
+      ...n,
+      name: n.name || n.display_name || n.id,
+    }))
+    const links = (raw.links || []).map((l) => ({
+      ...l,
+      source: linkEndpointId(l.source),
+      target: linkEndpointId(l.target),
+    }))
+    return { nodes, links }
+  }, [graphData])
 
-  // Custom node rendering with THREE.js
   const nodeThreeObject = useCallback((node) => {
     const geometry = new THREE.SphereGeometry(node.val || 5, 16, 16)
 
@@ -34,17 +55,14 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
     const color = node.color || '#8b5cf6'
 
     const material = new THREE.MeshPhongMaterial({
-      color: color,
+      color,
       transparent: true,
-      opacity: isActive ? 1.0 : 0.6,
+      opacity: isActive ? 1.0 : 0.65,
       emissive: isActive ? color : 0x000000,
-      emissiveIntensity: isActive ? 0.5 : 0,
+      emissiveIntensity: isActive ? 0.45 : 0,
     })
 
     const mesh = new THREE.Mesh(geometry, material)
-
-    // TODO: Add text sprite for name (Person A can implement)
-
     return mesh
   }, [simulationState])
 
@@ -62,24 +80,22 @@ function SocietyGraph({ graphData, simulationState, onNodeClick }) {
       ref={graphRef}
       graphData={data}
       nodeThreeObject={nodeThreeObject}
-      nodeLabel={(node) => `${node.archetype}: ${node.name}`}
+      nodeLabel={(node) => `${node.archetype || 'Persona'}: ${node.name || node.id}`}
 
-      // Particles for information flow
       linkDirectionalParticles={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(`${link.source.id}-${link.target.id}`)
+        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
         return isActive ? 4 : 0
       }}
       linkDirectionalParticleSpeed={0.005}
       linkDirectionalParticleColor={() => '#60a5fa'}
 
-      // Link styling
       linkColor={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(`${link.source.id}-${link.target.id}`)
-        return isActive ? '#60a5fa' : 'rgba(255,255,255,0.05)'
+        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
+        return isActive ? '#60a5fa' : 'rgba(148,163,184,0.22)'
       }}
       linkWidth={(link) => {
-        const isActive = simulationState?.activeLinks?.includes(`${link.source.id}-${link.target.id}`)
-        return isActive ? 2 : 0.5
+        const isActive = simulationState?.activeLinks?.includes(linkKey(link))
+        return isActive ? 2 : 0.45
       }}
 
       // Background

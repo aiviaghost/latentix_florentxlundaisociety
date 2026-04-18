@@ -1,29 +1,47 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import SocietyBuilderView from './components/SocietyBuilderView'
+import SocietyGraph from './components/SocietyGraph'
 import api from './api/client'
-import { Sparkles } from 'lucide-react'
+import { isPipelineLive } from './lib/pipelineConfig'
+import { Sparkles, ArrowLeft } from 'lucide-react'
+import { Button } from './components/ui/button'
 
 function App() {
   const [loading, setLoading] = useState(false)
-  const [currentPhase, setCurrentPhase] = useState('builder') // 'builder' | 'simulation'
+  const [networkGraph, setNetworkGraph] = useState(null)
 
-  const handleSearch = async (query) => {
-    setLoading(true)
-    try {
-      // Call new simplified API
-      const result = await api.searchLinkedIn(query)
-      return result
-    } catch (error) {
-      console.error('Search failed:', error)
-      throw error
-    } finally {
-      setLoading(false)
+  const handleSearch = useCallback(async (query) => {
+    if (isPipelineLive()) {
+      setLoading(true)
+      try {
+        return await api.searchLinkedIn(query)
+      } finally {
+        setLoading(false)
+      }
     }
-  }
+
+    setLoading(true)
+    await new Promise((r) => setTimeout(r, 380))
+    setLoading(false)
+    return {
+      society_id: `sim_${Date.now()}`,
+      status: 'processing',
+      message: 'Demo pipeline: index match + pre-built personas (set VITE_PIPELINE_LIVE=true for live API)',
+    }
+  }, [])
+
+  const handleOpenNetwork = useCallback((data) => {
+    if (data?.nodes?.length) {
+      setNetworkGraph({ nodes: data.nodes, links: data.links || [] })
+    }
+  }, [])
+
+  const handleCloseNetwork = useCallback(() => {
+    setNetworkGraph(null)
+  }, [])
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden">
-      {/* Global Header */}
       <header className="flex-shrink-0 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container mx-auto px-6 py-3">
           <div className="flex items-center justify-between">
@@ -37,20 +55,42 @@ function App() {
               </span>
             </div>
 
-            {/* Phase indicator */}
             <div className="flex items-center gap-2">
               <div className="text-xs text-muted-foreground">
-                Phase 1: Society Builder
+                {networkGraph ? '3D network' : 'Phase 1: Society Builder'}
               </div>
+              {!isPipelineLive() && (
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground/80 border border-border rounded px-1.5 py-0.5">
+                  Demo index pipeline
+                </span>
+              )}
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
-        <SocietyBuilderView onSearch={handleSearch} loading={loading} />
-        {/* Phase 2 (Simulation) can be added here later */}
+      <main className="flex-1 overflow-hidden relative">
+        <SocietyBuilderView
+          onSearch={handleSearch}
+          loading={loading}
+          pipelineLive={isPipelineLive()}
+          onOpenNetwork={handleOpenNetwork}
+        />
+
+        {networkGraph && (
+          <div className="absolute inset-0 z-20 flex flex-col bg-background">
+            <div className="flex-shrink-0 flex items-center gap-2 border-b border-border px-4 py-2 bg-card/80">
+              <Button type="button" variant="outline" size="sm" className="gap-2" onClick={handleCloseNetwork}>
+                <ArrowLeft className="h-4 w-4" />
+                Back to pipeline
+              </Button>
+              <span className="text-sm text-muted-foreground">Drag to rotate, scroll to zoom</span>
+            </div>
+            <div className="flex-1 min-h-0">
+              <SocietyGraph graphData={networkGraph} />
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )

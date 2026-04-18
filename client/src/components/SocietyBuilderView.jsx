@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import SearchInput from './SearchInput'
 import DynamicPipeline from './pipeline/DynamicPipeline'
 import usePipelineUpdates from '../hooks/usePipelineUpdates'
@@ -7,31 +7,44 @@ import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { CheckCircle2, Eye, RefreshCw, Network } from 'lucide-react'
 
-export default function SocietyBuilderView({ onSearch, loading }) {
+function formatSearchError(error) {
+  if (!error) return 'Search failed.'
+  const msg = error.response?.data?.error || error.response?.data?.message || error.message
+  return typeof msg === 'string' ? msg : 'Search failed.'
+}
+
+export default function SocietyBuilderView({ onSearch, loading, pipelineLive, onOpenNetwork }) {
   const [query, setQuery] = useState('')
   const [societyId, setSocietyId] = useState(null)
   const [showSearch, setShowSearch] = useState(true)
+  const [searchError, setSearchError] = useState('')
 
   const { profiles, personas, graphState, isComplete, reset } = usePipelineUpdates(
     societyId,
-    !!societyId
+    !!societyId,
+    { query }
   )
 
   const handleSearch = async (searchQuery) => {
     setQuery(searchQuery)
+    setSearchError('')
     setShowSearch(false)
 
     try {
-      // Call backend to start society generation
       const result = await onSearch(searchQuery)
 
-      // Backend should return a society_id for tracking
-      if (result && result.society_id) {
+      if (result?.society_id) {
         setSocietyId(result.society_id)
+      } else if (pipelineLive) {
+        setSearchError('Server did not return a society_id. Is POST /api/society/search implemented?')
+        setShowSearch(true)
+      } else {
+        setSearchError('Unexpected response.')
+        setShowSearch(true)
       }
     } catch (error) {
       console.error('Search failed:', error)
-      // Show error and reset
+      setSearchError(formatSearchError(error))
       setShowSearch(true)
     }
   }
@@ -40,21 +53,32 @@ export default function SocietyBuilderView({ onSearch, loading }) {
     setQuery('')
     setSocietyId(null)
     setShowSearch(true)
+    setSearchError('')
     reset()
   }
 
   const totalNodes = profiles.length + personas.length
+  /** Waiting for first streamed/simulated profile row. */
+  const streamWaiting = !!societyId && totalNodes === 0 && !isComplete
+
+  const handleView3D = useCallback(() => {
+    if (graphState?.status === 'complete' && graphState.nodes?.length) {
+      onOpenNetwork?.({
+        nodes: graphState.nodes,
+        links: graphState.links,
+      })
+    }
+  }, [graphState, onOpenNetwork])
 
   return (
     <div className="h-full w-full flex flex-col">
-      {/* Header */}
       <div className="flex-shrink-0 border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold">Society Builder</h1>
               <p className="text-sm text-muted-foreground">
-                LinkedIn Profile Discovery → Persona Synthesis → Network Assembly
+                Audience description → Profile index → Pre-built personas → Graph → 3D network
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -62,11 +86,11 @@ export default function SocietyBuilderView({ onSearch, loading }) {
                 <>
                   <Badge variant="secondary" className="gap-1">
                     <Network className="h-3 w-3" />
-                    {profiles.length} Profiles Found
+                    {profiles.length} from index
                   </Badge>
                   <Badge variant="default" className="gap-1">
                     <CheckCircle2 className="h-3 w-3" />
-                    {personas.length} Personas Synthesized
+                    {personas.length} personas linked
                   </Badge>
                 </>
               )}
@@ -81,17 +105,13 @@ export default function SocietyBuilderView({ onSearch, loading }) {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 overflow-hidden relative">
         {showSearch ? (
-          /* Search Input View */
           <div className="h-full w-full flex items-center justify-center p-6 bg-gradient-to-br from-background to-muted/20">
-            <SearchInput onSearch={handleSearch} loading={loading} />
+            <SearchInput onSearch={handleSearch} loading={loading} error={searchError} />
           </div>
         ) : (
-          /* Pipeline View */
           <div className="h-full w-full relative">
-            {/* Pipeline canvas */}
             <DynamicPipeline
               query={query}
               profiles={profiles}
@@ -99,9 +119,8 @@ export default function SocietyBuilderView({ onSearch, loading }) {
               graphState={graphState}
             />
 
-            {/* Floating status card */}
             {!isComplete && totalNodes > 0 && (
-              <div className="absolute top-4 left-4">
+              <div className="absolute top-4 left-4 z-10">
                 <Card className="w-64 shadow-lg glass">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center justify-between">
@@ -134,9 +153,8 @@ export default function SocietyBuilderView({ onSearch, loading }) {
               </div>
             )}
 
-            {/* Success overlay when complete */}
             {isComplete && graphState && (
-              <div className="absolute top-4 right-4">
+              <div className="absolute top-4 right-4 z-10">
                 <Card className="w-80 shadow-xl border-green-500/50 bg-green-500/5">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
@@ -144,7 +162,7 @@ export default function SocietyBuilderView({ onSearch, loading }) {
                       <CardTitle className="text-base">Society Complete!</CardTitle>
                     </div>
                     <CardDescription>
-                      {personas.length} personas connected in a network graph
+                      {personas.length} pre-built personas connected for graph exploration
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -160,7 +178,12 @@ export default function SocietyBuilderView({ onSearch, loading }) {
                         </div>
                       </div>
                     )}
-                    <Button className="w-full gap-2">
+                    <Button
+                      type="button"
+                      className="w-full gap-2"
+                      onClick={handleView3D}
+                      disabled={!graphState.nodes?.length}
+                    >
                       <Eye className="h-4 w-4" />
                       View 3D Network
                     </Button>
@@ -169,18 +192,18 @@ export default function SocietyBuilderView({ onSearch, loading }) {
               </div>
             )}
 
-            {/* Empty state during initial loading */}
-            {totalNodes === 0 && loading && (
-              <div className="absolute inset-0 flex items-center justify-center">
+            {streamWaiting && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-background/40 backdrop-blur-[2px]">
                 <Card className="w-96 shadow-xl">
                   <CardContent className="p-8 text-center space-y-4">
                     <div className="w-16 h-16 mx-auto rounded-full bg-primary/20 flex items-center justify-center">
                       <Network className="h-8 w-8 text-primary animate-pulse" />
                     </div>
                     <div>
-                      <div className="font-semibold mb-1">Searching LinkedIn...</div>
+                      <div className="font-semibold mb-1">Matching profile index…</div>
                       <div className="text-sm text-muted-foreground">
-                        Finding profiles that match "{query.substring(0, 50)}"
+                        Resolving audience &quot;{query.substring(0, 50)}
+                        {query.length > 50 ? '…' : ''}&quot; to stored profiles and personas
                       </div>
                     </div>
                   </CardContent>

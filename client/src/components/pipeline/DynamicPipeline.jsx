@@ -14,6 +14,7 @@ import ProcessingNode from './ProcessingNode'
 import OutputNode from './OutputNode'
 import ProfileNode from './ProfileNode'
 import PersonaNode from './PersonaNode'
+import { PIPELINE } from '../../lib/pipelineCopy'
 
 const nodeTypes = {
   source: SourceNode,
@@ -23,106 +24,137 @@ const nodeTypes = {
   persona: PersonaNode,
 }
 
+/** Max profile+persona rows before collapsing (layout + perf). */
+const MAX_PIPELINE_ROWS = 12
+
+/** Layout: card column width (matches Tailwind w-72) + horizontal/vertical rhythm. */
+const CARD_WIDTH = 288
+const COLUMN_GAP = 160
+const ROW_HEIGHT = 228
+const START_X = 36
+const START_Y = 48
+const NODE_Z = 10
+
+function columnXs() {
+  let x = START_X
+  const query = x
+  x += CARD_WIDTH + COLUMN_GAP
+  const indexMatcher = x
+  x += CARD_WIDTH + COLUMN_GAP
+  const profiles = x
+  x += CARD_WIDTH + COLUMN_GAP
+  const personas = x
+  x += CARD_WIDTH + COLUMN_GAP
+  const graph = x
+  x += CARD_WIDTH + COLUMN_GAP
+  const output = x
+  return { query, indexMatcher, profiles, personas, graph, output }
+}
+
+const defaultEdgeOptions = {
+  type: 'smoothstep',
+  style: { strokeWidth: 1.5, stroke: 'hsl(var(--primary))' },
+}
+
 /**
- * Dynamic pipeline that builds nodes as data streams in
- *
- * Layout:
- * [Query] → [LinkedIn Scraper] → [Profiles...] → [Personas...] → [Graph Assembly] → [Output]
+ * Dynamic pipeline: audience description → profile index → rows → graph → output.
  */
 export default function DynamicPipeline({ query, profiles, personas, graphState }) {
   const [nodes, setNodes, onNodesChange] = useNodesState([])
   const [edges, setEdges, onEdgesChange] = useEdgesState([])
 
-  // Build dynamic pipeline based on current data
+  const { displayProfiles, overflowCount } = useMemo(() => {
+    if (profiles.length <= MAX_PIPELINE_ROWS) {
+      return { displayProfiles: profiles, overflowCount: 0 }
+    }
+    return {
+      displayProfiles: profiles.slice(0, MAX_PIPELINE_ROWS),
+      overflowCount: profiles.length - MAX_PIPELINE_ROWS,
+    }
+  }, [profiles])
+
   useEffect(() => {
+    const COLS = columnXs()
     const newNodes = []
     const newEdges = []
+    const overflowNote = overflowCount
+      ? ` (${overflowCount} more in index, hidden in layout)`
+      : ''
 
-    // Column positions
-    const COLS = {
-      query: 50,
-      scraper: 350,
-      profiles: 650,
-      personas: 1000,
-      graph: 1350,
-      output: 1700,
-    }
+    const marker = { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' }
 
-    const ROW_HEIGHT = 150
-    const START_Y = 50
-
-    // 1. Query node (always present if query exists)
     if (query) {
       newNodes.push({
         id: 'query',
         type: 'source',
-        position: { x: COLS.query, y: 200 },
+        position: { x: COLS.query, y: START_Y + ROW_HEIGHT },
+        zIndex: NODE_Z,
         data: {
-          label: 'Search Query',
-          sourceType: 'database',
+          label: PIPELINE.sourceLabel,
+          sourceType: 'description',
           status: 'complete',
-          details: query.substring(0, 50) + (query.length > 50 ? '...' : ''),
+          details: query.substring(0, 72) + (query.length > 72 ? '…' : ''),
         },
       })
 
-      // 2. LinkedIn scraper node
-      const scraperStatus = profiles.length === 0 && graphState?.status !== 'complete'
-        ? 'processing'
-        : 'complete'
+      const indexStatus =
+        profiles.length === 0 && graphState?.status !== 'complete' ? 'processing' : 'complete'
 
       newNodes.push({
-        id: 'linkedin-scraper',
+        id: 'profile-index',
         type: 'processing',
-        position: { x: COLS.scraper, y: 200 },
+        position: { x: COLS.indexMatcher, y: START_Y + ROW_HEIGHT },
+        zIndex: NODE_Z,
         data: {
-          label: 'LinkedIn Scraper',
+          label: PIPELINE.indexNodeLabel,
           processingType: 'llm',
-          status: scraperStatus,
-          currentTask: scraperStatus === 'processing' ? 'Searching profiles...' : `Found ${profiles.length} profiles`,
+          status: indexStatus,
+          currentTask:
+            indexStatus === 'processing'
+              ? PIPELINE.indexMatching
+              : PIPELINE.indexComplete(profiles.length, overflowNote),
           processed: profiles.length,
           total: profiles.length || '?',
         },
       })
 
       newEdges.push({
-        id: 'query-to-scraper',
+        id: 'query-to-index',
         source: 'query',
-        target: 'linkedin-scraper',
-        animated: scraperStatus === 'processing',
-        style: { stroke: 'hsl(var(--primary))' },
-        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+        target: 'profile-index',
+        animated: indexStatus === 'processing',
+        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.5 },
+        markerEnd: marker,
+        type: 'smoothstep',
       })
     }
 
-    // 3. Profile nodes (dynamic, stacked vertically)
-    profiles.forEach((profile, idx) => {
+    displayProfiles.forEach((profile, idx) => {
       const profileId = `profile-${profile.id || idx}`
+      const y = START_Y + idx * ROW_HEIGHT
 
       newNodes.push({
         id: profileId,
         type: 'profile',
-        position: {
-          x: COLS.profiles,
-          y: START_Y + idx * ROW_HEIGHT,
-        },
+        position: { x: COLS.profiles, y },
+        zIndex: NODE_Z,
         data: {
           ...profile,
           status: profile.status || 'scraped',
         },
       })
 
-      // Edge from scraper to profile
       newEdges.push({
-        id: `scraper-to-${profileId}`,
-        source: 'linkedin-scraper',
+        id: `index-to-${profileId}`,
+        source: 'profile-index',
         target: profileId,
         animated: profile.status === 'found',
-        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1 },
-        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+        style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.25 },
+        markerEnd: marker,
+        type: 'smoothstep',
       })
 
-      // 4. Persona node (1:1 mapping from profile)
-      const persona = personas.find(p => p.id === profile.id || p.sourceProfileId === profile.id)
+      const persona = personas.find((p) => p.sourceProfileId === profile.id)
 
       if (persona) {
         const personaId = `persona-${persona.id || idx}`
@@ -130,72 +162,93 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
         newNodes.push({
           id: personaId,
           type: 'persona',
-          position: {
-            x: COLS.personas,
-            y: START_Y + idx * ROW_HEIGHT,
-          },
+          position: { x: COLS.personas, y },
+          zIndex: NODE_Z,
           data: {
             ...persona,
             status: persona.status || 'ready',
           },
         })
 
-        // Edge from profile to persona
         newEdges.push({
           id: `${profileId}-to-${personaId}`,
           source: profileId,
           target: personaId,
           animated: persona.status === 'synthesizing',
-          style: { stroke: 'hsl(var(--primary))' },
-          markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+          style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.25 },
+          markerEnd: marker,
+          type: 'smoothstep',
         })
 
-        // Edge from persona to graph assembly
         if (graphState) {
           newEdges.push({
             id: `${personaId}-to-graph`,
             source: personaId,
             target: 'graph-assembly',
             animated: graphState.status === 'processing',
-            style: { stroke: 'hsl(var(--primary))', strokeWidth: 1 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+            style: { stroke: 'hsl(var(--primary))', strokeWidth: 1.25 },
+            markerEnd: marker,
+            type: 'smoothstep',
           })
         }
       }
     })
 
-    // 5. Graph assembly node (appears when personas exist)
+    if (overflowCount > 0) {
+      const overflowY = START_Y + displayProfiles.length * ROW_HEIGHT + 24
+      newNodes.push({
+        id: 'profiles-overflow',
+        type: 'processing',
+        position: { x: COLS.profiles, y: overflowY },
+        zIndex: NODE_Z,
+        data: {
+          label: 'More from index',
+          processingType: 'llm',
+          status: 'complete',
+          currentTask: PIPELINE.profileOverflow(overflowCount),
+          processed: overflowCount,
+          total: overflowCount,
+        },
+      })
+      newEdges.push({
+        id: 'index-to-overflow',
+        source: 'profile-index',
+        target: 'profiles-overflow',
+        animated: false,
+        style: { stroke: 'hsl(var(--muted-foreground))', strokeDasharray: '4 4' },
+        markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--muted-foreground))' },
+        type: 'smoothstep',
+      })
+    }
+
     if (personas.length > 0) {
       const graphStatus = graphState?.status || 'idle'
+      const rowCount = Math.max(displayProfiles.length, 1)
+      const midY = START_Y + ((rowCount - 1) * ROW_HEIGHT) / 2
 
       newNodes.push({
         id: 'graph-assembly',
         type: 'processing',
-        position: {
-          x: COLS.graph,
-          y: START_Y + (Math.max(profiles.length - 1, 0) * ROW_HEIGHT / 2),
-        },
+        position: { x: COLS.graph, y: midY },
+        zIndex: NODE_Z,
         data: {
-          label: 'Graph Assembly',
+          label: PIPELINE.graphLabel,
           processingType: 'graph',
           status: graphStatus,
-          currentTask: graphState?.message || 'Building network...',
+          currentTask: graphState?.message || 'Building network graph…',
           processed: graphState?.connectionsBuilt || 0,
           total: graphState?.totalConnections || personas.length * 2,
         },
       })
 
-      // 6. Output node (final result)
       if (graphState && graphState.status === 'complete') {
         newNodes.push({
           id: 'output',
           type: 'output',
-          position: {
-            x: COLS.output,
-            y: START_Y + (Math.max(profiles.length - 1, 0) * ROW_HEIGHT / 2),
-          },
+          position: { x: COLS.output, y: midY },
+          zIndex: NODE_Z,
           data: {
-            label: '3D Network Graph',
+            label: PIPELINE.outputLabel,
             status: 'complete',
             personaCount: personas.length,
             clusters: graphState.clusters || [],
@@ -209,14 +262,15 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
           target: 'output',
           animated: false,
           style: { stroke: 'hsl(var(--primary))', strokeWidth: 2 },
-          markerEnd: { type: MarkerType.ArrowClosed, color: 'hsl(var(--primary))' },
+          markerEnd: marker,
+          type: 'smoothstep',
         })
       }
     }
 
     setNodes(newNodes)
     setEdges(newEdges)
-  }, [query, profiles, personas, graphState, setNodes, setEdges])
+  }, [query, profiles, personas, graphState, displayProfiles, overflowCount, setNodes, setEdges])
 
   return (
     <div className="w-full h-full">
@@ -226,11 +280,13 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        defaultEdgeOptions={defaultEdgeOptions}
         fitView
-        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
-        minZoom={0.3}
-        maxZoom={1.2}
+        fitViewOptions={{ padding: 0.32, maxZoom: 1.1, minZoom: 0.2 }}
+        minZoom={0.15}
+        maxZoom={1.25}
         proOptions={{ hideAttribution: true }}
+        elevateEdgesOnSelect
       >
         <Background
           color="hsl(var(--muted-foreground))"
@@ -238,9 +294,15 @@ export default function DynamicPipeline({ query, profiles, personas, graphState 
           size={1}
           variant="dots"
         />
-        <Controls className="!bg-card !border-border" />
+        <Controls
+          className="!bg-card !border !border-border !shadow-md [&_button]:!bg-muted [&_button]:!border-border [&_button]:!text-foreground [&_button]:!rounded-md [&_button:hover]:!bg-accent [&_button_svg]:!fill-current"
+          showInteractive={false}
+        />
         <MiniMap
-          className="!bg-card !border-border"
+          className="!bg-card !border !border-border !m-3 !rounded-md"
+          position="bottom-right"
+          pannable
+          zoomable
           nodeColor={(node) => {
             switch (node.type) {
               case 'profile':

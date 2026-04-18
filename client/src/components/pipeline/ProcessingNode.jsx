@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Loader2, Brain, Network, CheckCircle2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { PIPELINE_CARD_SHELL } from '../../lib/pipelineCopy'
 
 const iconMap = {
   llm: Brain,
@@ -25,10 +26,7 @@ export default function ProcessingNode({ data }) {
         position={Position.Left}
         className="w-3 h-3 !bg-primary"
       />
-      <Card className={cn(
-        'w-72 transition-all',
-        statusColors[data.status]
-      )}>
+      <Card className={cn(PIPELINE_CARD_SHELL, 'transition-all', statusColors[data.status])}>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

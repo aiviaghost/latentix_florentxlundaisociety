@@ -2,6 +2,12 @@ import axios from 'axios'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
+/**
+ * Society Builder streaming: when `VITE_PIPELINE_LIVE` is not `"true"`, the UI
+ * runs a client-side simulated pipeline (no POST /society/search required).
+ * Set `VITE_PIPELINE_LIVE=true` to call `searchLinkedIn` and WebSocket/polling instead.
+ */
+
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {

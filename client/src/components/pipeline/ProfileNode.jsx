@@ -3,14 +3,24 @@ import { Card, CardContent } from '../ui/card'
 import { Badge } from '../ui/badge'
 import { Linkedin, Building2, MapPin } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { PIPELINE_CARD_SHELL } from '../../lib/pipelineCopy'
+
+function statusBadgeLabel(data) {
+  if (data.origin === 'index' && data.status === 'scraped') return 'Indexed'
+  if (data.status === 'found') return 'Matched'
+  if (data.status === 'scraped') return 'Loaded'
+  return data.status
+}
 
 export default function ProfileNode({ data }) {
   const statusColors = {
-    idle: 'bg-muted/50 border-muted',
+    idle: 'bg-muted/50 border-border',
     found: 'bg-amber-500/10 border-amber-500/50',
     scraped: 'bg-green-500/10 border-green-500/50',
     error: 'bg-red-500/10 border-red-500/50',
   }
+
+  const key = data.status || 'idle'
 
   return (
     <>
@@ -19,14 +29,16 @@ export default function ProfileNode({ data }) {
         position={Position.Left}
         className="w-3 h-3 !bg-primary opacity-0"
       />
-      <Card className={cn(
-        'w-64 transition-all animate-fade-in',
-        statusColors[data.status || 'idle']
-      )}>
+      <Card
+        className={cn(
+          PIPELINE_CARD_SHELL,
+          'transition-all animate-fade-in',
+          statusColors[key] || statusColors.idle
+        )}
+      >
         <CardContent className="p-4 space-y-3">
-          {/* Header with avatar and name */}
           <div className="flex items-start gap-3">
-            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-12 h-12 rounded-full bg-primary/15 flex items-center justify-center flex-shrink-0 border border-border">
               {data.avatar ? (
                 <img
                   src={data.avatar}
@@ -43,14 +55,16 @@ export default function ProfileNode({ data }) {
                 <div className="text-xs text-muted-foreground truncate">{data.title}</div>
               )}
               {data.status && (
-                <Badge variant={data.status === 'scraped' ? 'default' : 'secondary'} className="mt-1 text-xs">
-                  {data.status}
+                <Badge
+                  variant={data.status === 'scraped' ? 'default' : 'secondary'}
+                  className="mt-1.5 text-xs"
+                >
+                  {statusBadgeLabel(data)}
                 </Badge>
               )}
             </div>
           </div>
 
-          {/* Company and location */}
           {(data.company || data.location) && (
             <div className="space-y-1 text-xs text-muted-foreground">
               {data.company && (
@@ -68,11 +82,10 @@ export default function ProfileNode({ data }) {
             </div>
           )}
 
-          {/* Skills preview */}
           {data.skills && data.skills.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {data.skills.slice(0, 3).map((skill, idx) => (
-                <Badge key={idx} variant="outline" className="text-xs py-0">
+                <Badge key={idx} variant="outline" className="text-xs py-0 font-normal">
                   {skill}
                 </Badge>
               ))}
