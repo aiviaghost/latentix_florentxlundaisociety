@@ -114,6 +114,28 @@ const api = {
   },
 
   /**
+   * Test a single persona against a prompt (for A/B testing)
+   *
+   * @param {Object} config
+   * @param {Object} config.persona - Persona object with traits, archetype, etc.
+   * @param {string} config.prompt - The idea, message, or copy to test
+   *
+   * @returns {Promise<Object>} Response format:
+   * {
+   *   reaction: 'positive' | 'negative' | 'neutral',
+   *   action: 'share' | 'engage' | 'debate' | 'ignore',
+   *   sentiment_score: number,  // -1.0 to 1.0
+   *   quote: string,
+   *   would_share: boolean,
+   *   reasoning: string
+   * }
+   */
+  async testPersona({ persona, prompt }) {
+    const response = await apiClient.post('/persona/respond', { persona, prompt })
+    return response.data
+  },
+
+  /**
    * Health check
    */
   async healthCheck() {
