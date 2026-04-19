@@ -149,6 +149,12 @@ Full shapes and stream record types: [`docs/SOCIETY_BUILDER_SIMULATION_FLOW.md`]
 
 ---
 
+## Dataset used
+
+We used the real samples from [this dataset](https://github.com/navid-aub/LinkedIn-Dataset) as seeds to generate the synthetic personas. 
+
+---
+
 ## License
 
 MIT — hackathon / educational use.
